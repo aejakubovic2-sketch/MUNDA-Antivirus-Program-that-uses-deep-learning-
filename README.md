@@ -4,6 +4,7 @@
 ---
 
 ## Overview
+!!!!!THE CURRENT BUILD DOESNT WORK ONLY THE DASHBOARD FUNCTION BUT THE MODELS THEMSELFS DONT WORK!!!!
 CrossGuard is a cross-platform malware detection system that combines:
 - **EMBER2024 dataset** — 3.2M files across Windows, Linux, Android, PDF
 - **LightGBM** — Fast feature-based detection (99.69% AUC)
