@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrossGuard — Malware Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #040810;
+    --surface:  #080f1e;
+    --border:   #0d2040;
+    --accent:   #00e5ff;
+    --accent2:  #ff3d6e;
+    --green:    #00ff88;
+    --yellow:   #ffcc00;
+    --text:     #c8d8f0;
+    --dim:      #4a6080;
+    --glow:     0 0 20px rgba(0,229,255,0.3);
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui:   'Rajdhani', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Radial spotlight */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 600px;
+    background: radial-gradient(ellipse, rgba(0,229,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(4,8,16,0.8);
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: var(--glow);
+  }
+
+  .logo-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  .header-stats {
+    display: flex;
+    gap: 24px;
+  }
+
+  .stat-pill {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 2px;
+  }
+
+  .stat-pill span { color: var(--accent); }
+
+  /* ── Main layout ── */
+  main {
+    position: relative;
+    z-index: 5;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.03), transparent 60%);
+    pointer-events: none;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.drag-over {
+    border-color: var(--accent);
+    box-shadow: var(--glow), inset 0 0 30px rgba(0,229,255,0.04);
+  }
+
+  .drop-zone.drag-over { background: rgba(0,229,255,0.04); }
+
+  .drop-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    opacity: 0.6;
+  }
+
+  .drop-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .drop-sub {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 24px;
+  }
+
+  .platform-badges {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    letter-spacing: 1px;
+    border-radius: 2px;
+  }
+
+  #fileInput { display: none; }
+
+  /* ── Scanning animation ── */
+  .scan-progress {
+    display: none;
+    padding: 40px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    margin-top: 24px;
+  }
+
+  .scan-progress.active { display: block; }
+
+  .scan-ring {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    position: relative;
+  }
+
+  .scan-ring svg { animation: rotate 1.5s linear infinite; }
+
+  @keyframes rotate { to { transform: rotate(360deg); } }
+
+  .scan-label {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    animation: pulse 1s ease-in-out infinite alternate;
+  }
+
+  .scan-step {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 8px;
+    height: 16px;
+    transition: all 0.3s;
+  }
+
+  @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+
+  /* ── Result card ── */
+  .result-card {
+    display: none;
+    margin-top: 24px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    animation: slideIn 0.4s ease;
+  }
+
+  .result-card.visible { display: block; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-header {
+    padding: 24px 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .result-header.malware  { background: rgba(255,61,110,0.12); border-bottom: 1px solid rgba(255,61,110,0.3); }
+  .result-header.suspicious { background: rgba(255,204,0,0.10); border-bottom: 1px solid rgba(255,204,0,0.3); }
+  .result-header.clean    { background: rgba(0,255,136,0.08); border-bottom: 1px solid rgba(0,255,136,0.2); }
+
+  .verdict-icon {
+    font-size: 40px;
+    line-height: 1;
+  }
+
+  .verdict-info { flex: 1; }
+
+  .verdict-label {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 5px;
+  }
+
+  .verdict-label.malware    { color: var(--accent2); }
+  .verdict-label.suspicious { color: var(--yellow); }
+  .verdict-label.clean      { color: var(--green); }
+
+  .verdict-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .verdict-score {
+    text-align: right;
+  }
+
+  .score-big {
+    font-family: var(--font-mono);
+    font-size: 36px;
+    font-weight: 700;
+  }
+
+  .score-big.malware    { color: var(--accent2); }
+  .score-big.suspicious { color: var(--yellow); }
+  .score-big.clean      { color: var(--green); }
+
+  .score-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  /* ── Score bar ── */
+  .score-bar-wrap {
+    padding: 0 28px 20px;
+    background: var(--surface);
+  }
+
+  .score-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+
+  .score-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .score-fill.malware    { background: linear-gradient(90deg, #ff3d6e, #ff8c00); }
+  .score-fill.suspicious { background: linear-gradient(90deg, #ffcc00, #ff8c00); }
+  .score-fill.clean      { background: linear-gradient(90deg, #00ff88, #00e5ff); }
+
+  .score-markers {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  /* ── Detail grid ── */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+  }
+
+  .detail-cell {
+    background: var(--surface);
+    padding: 16px 24px;
+  }
+
+  .detail-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .detail-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  /* ── Model score bars ── */
+  .model-scores {
+    background: var(--surface);
+    padding: 20px 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .model-score-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .model-score-row:last-child { margin-bottom: 0; }
+
+  .model-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--dim);
+    width: 100px;
+    flex-shrink: 0;
+  }
+
+  .model-bar-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .model-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .model-score-val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    width: 44px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── History ── */
+  .history-section {
+    margin-top: 40px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--dim);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+  }
+
+  .history-list { display: flex; flex-direction: column; gap: 4px; }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .history-item:hover { border-color: var(--dim); }
+
+  .h-verdict { width: 90px; font-weight: 700; letter-spacing: 1px; }
+  .h-verdict.MALWARE    { color: var(--accent2); }
+  .h-verdict.SUSPICIOUS { color: var(--yellow); }
+  .h-verdict.CLEAN      { color: var(--green); }
+
+  .h-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .h-platform { color: var(--dim); width: 80px; }
+  .h-score { color: var(--accent); width: 50px; text-align: right; }
+
+  /* ── Confidence chip ── */
+  .conf-chip {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+
+  .conf-chip.HIGH   { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+  .conf-chip.MEDIUM { background: rgba(255,204,0,0.15); color: var(--yellow); border: 1px solid rgba(255,204,0,0.3); }
+  .conf-chip.LOW    { background: rgba(255,61,110,0.15); color: var(--accent2); border: 1px solid rgba(255,61,110,0.3); }
+
+  /* ── Empty state ── */
+  .empty-history {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--dim);
+    text-align: center;
+    padding: 20px;
+    border: 1px dashed var(--border);
+    border-radius: 2px;
+  }
+
+  /* ── Error state ── */
+  .error-card {
+    display: none;
+    margin-top: 24px;
+    padding: 20px 24px;
+    background: rgba(255,61,110,0.08);
+    border: 1px solid rgba(255,61,110,0.3);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent2);
+  }
+
+  .error-card.visible { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" stroke="#00e5ff" stroke-width="1.5" fill="none"/>
+        <polygon points="18,8 28,13 28,23 18,28 8,23 8,13" stroke="#00e5ff" stroke-width="1" fill="none" opacity="0.4"/>
+        <circle cx="18" cy="18" r="4" fill="#00e5ff" opacity="0.9"/>
+        <line x1="18" y1="2"  x2="18" y2="8"  stroke="#00e5ff" stroke-width="1"/>
+        <line x1="18" y1="28" x2="18" y2="34" stroke="#00e5ff" stroke-width="1"/>
+        <line x1="2"  y1="10" x2="8"  y2="13" stroke="#00e5ff" stroke-width="1"/>
+        <line x1="28" y1="23" x2="34" y2="26" stroke="#00e5ff" stroke-width="1"/>
+        <line x1="34" y1="10" x2="28" y2="13" stroke="#00e5ff" stroke-width="1"/>
+        <line x1="8"  y1="23" x2="2"  y2="26" stroke="#00e5ff" stroke-width="1"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">CROSSGUARD</div>
+      <div class="logo-sub">CROSS-PLATFORM MALWARE DETECTION v1.0</div>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill">ENGINE <span>EMBER2024</span></div>
+    <div class="stat-pill">MODELS <span>LightGBM + MalConv2</span></div>
+    <div class="stat-pill">AUC <span>~99.9%</span></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Drop Zone -->
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-icon">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="12" y="8" width="40" height="48" rx="2" stroke="#00e5ff" stroke-width="1.5" fill="none" opacity="0.6"/>
+        <rect x="12" y="8" width="40" height="48" rx="2" stroke="#00e5ff" stroke-width="1.5" fill="none"/>
+        <line x1="20" y1="22" x2="44" y2="22" stroke="#00e5ff" stroke-width="1" opacity="0.4"/>
+        <line x1="20" y1="30" x2="44" y2="30" stroke="#00e5ff" stroke-width="1" opacity="0.4"/>
+        <line x1="20" y1="38" x2="36" y2="38" stroke="#00e5ff" stroke-width="1" opacity="0.4"/>
+        <circle cx="32" cy="32" r="14" fill="rgba(0,229,255,0.06)" stroke="#00e5ff" stroke-width="1.2" stroke-dasharray="3 3"/>
+        <path d="M28 34 L32 30 L36 34" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="32" y1="30" x2="32" y2="38" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="drop-title">DROP FILE TO SCAN</div>
+    <div class="drop-sub">or click to browse — max 50MB</div>
+    <div class="platform-badges">
+      <span class="badge">Windows .EXE</span>
+      <span class="badge">Android .APK</span>
+      <span class="badge">Linux .ELF</span>
+      <span class="badge">.NET Assembly</span>
+      <span class="badge">PDF Document</span>
+      <span class="badge">.DLL .SYS</span>
+    </div>
+    <input type="file" id="fileInput">
+  </div>
+
+  <!-- Scanning progress -->
+  <div class="scan-progress" id="scanProgress">
+    <div class="scan-ring">
+      <svg viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r="34" stroke="#0d2040" stroke-width="4" fill="none"/>
+        <circle cx="40" cy="40" r="34" stroke="#00e5ff" stroke-width="4" fill="none"
+          stroke-dasharray="60 154" stroke-linecap="round"/>
+        <circle cx="40" cy="40" r="22" stroke="#00e5ff" stroke-width="1" fill="none" opacity="0.3"
+          stroke-dasharray="10 138"/>
+      </svg>
+    </div>
+    <div class="scan-label">SCANNING</div>
+    <div class="scan-step" id="scanStep">Identifying file type...</div>
+  </div>
+
+  <!-- Error card -->
+  <div class="error-card" id="errorCard"></div>
+
+  <!-- Result card -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header" id="resultHeader">
+      <div class="verdict-icon" id="verdictIcon"></div>
+      <div class="verdict-info">
+        <div class="verdict-label" id="verdictLabel"></div>
+        <div class="verdict-sub" id="verdictSub"></div>
+      </div>
+      <div class="verdict-score">
+        <div class="score-big" id="scoreBig"></div>
+        <div class="score-label">THREAT SCORE</div>
+      </div>
+    </div>
+
+    <div class="score-bar-wrap">
+      <div class="score-track">
+        <div class="score-fill" id="scoreFill" style="width:0%"></div>
+      </div>
+      <div class="score-markers">
+        <span>CLEAN</span><span>SUSPICIOUS</span><span>MALWARE</span>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-cell">
+        <div class="detail-label">FILENAME</div>
+        <div class="detail-value" id="dFilename"></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">PLATFORM</div>
+        <div class="detail-value" id="dPlatform"></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">FILE SIZE</div>
+        <div class="detail-value" id="dSize"></div>
+      </div>
+      <div class="detail-cell">
+        <div class="detail-label">CONFIDENCE</div>
+        <div class="detail-value" id="dConfidence"></div>
+      </div>
+      <div class="detail-cell" style="grid-column: span 2;">
+        <div class="detail-label">SHA-256</div>
+        <div class="detail-value" id="dHash" style="font-size:11px; color: #4a6080;"></div>
+      </div>
+    </div>
+
+    <div class="model-scores">
+      <div class="model-score-row">
+        <div class="model-name">LightGBM</div>
+        <div class="model-bar-track"><div class="model-bar-fill" id="lgbmBar" style="width:0%"></div></div>
+        <div class="model-score-val" id="lgbmVal">—</div>
+      </div>
+      <div class="model-score-row">
+        <div class="model-name">MalConv2</div>
+        <div class="model-bar-track"><div class="model-bar-fill" id="malconvBar" style="width:0%"></div></div>
+        <div class="model-score-val" id="malconvVal">—</div>
+      </div>
+      <div class="model-score-row">
+        <div class="model-name">Ensemble</div>
+        <div class="model-bar-track"><div class="model-bar-fill" id="ensembleBar" style="width:0%"></div></div>
+        <div class="model-score-val" id="ensembleVal">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="history-section">
+    <div class="section-title">SCAN HISTORY</div>
+    <div class="history-list" id="historyList">
+      <div class="empty-history">No scans yet — drop a file above to begin</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const dropZone    = document.getElementById('dropZone');
+  const fileInput   = document.getElementById('fileInput');
+  const scanProgress = document.getElementById('scanProgress');
+  const scanStep    = document.getElementById('scanStep');
+  const errorCard   = document.getElementById('errorCard');
+  const resultCard  = document.getElementById('resultCard');
+  const historyList = document.getElementById('historyList');
+
+  const scanSteps = [
+    'Identifying file type...',
+    'Extracting EMBER v3 features...',
+    'Running LightGBM classifier...',
+    'Running MalConv2 neural network...',
+    'Combining ensemble scores...',
+    'Finalising verdict...',
+  ];
+
+  let stepInterval = null;
+  let history = [];
+
+  // ── Drop zone events ──────────────────────────────────
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) scanFile(e.target.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drag-over');
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) scanFile(e.dataTransfer.files[0]);
+  });
+
+  // ── Scan file ─────────────────────────────────────────
+  function scanFile(file) {
+    // Reset UI
+    resultCard.classList.remove('visible');
+    errorCard.classList.remove('visible');
+    scanProgress.classList.add('active');
+    dropZone.style.opacity = '0.5';
+    dropZone.style.pointerEvents = 'none';
+
+    // Animate steps
+    let stepIdx = 0;
+    scanStep.textContent = scanSteps[0];
+    stepInterval = setInterval(() => {
+      stepIdx = (stepIdx + 1) % scanSteps.length;
+      scanStep.textContent = scanSteps[stepIdx];
+    }, 700);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/api/scan', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        clearInterval(stepInterval);
+        scanProgress.classList.remove('active');
+        dropZone.style.opacity = '';
+        dropZone.style.pointerEvents = '';
+
+        if (data.error) {
+          showError(data.error);
+        } else {
+          showResult(data);
+          addHistory(data);
+        }
+      })
+      .catch(err => {
+        clearInterval(stepInterval);
+        scanProgress.classList.remove('active');
+        dropZone.style.opacity = '';
+        dropZone.style.pointerEvents = '';
+        showError('Scan failed: ' + err.message);
+      });
+  }
+
+  // ── Show result ───────────────────────────────────────
+  function showResult(d) {
+    const v = d.verdict.toLowerCase();
+    const icons = { malware: '🚨', suspicious: '⚠️', clean: '✅' };
+
+    // Header
+    document.getElementById('resultHeader').className = 'result-header ' + v;
+    document.getElementById('verdictIcon').textContent = icons[v] || '?';
+    document.getElementById('verdictLabel').className  = 'verdict-label ' + v;
+    document.getElementById('verdictLabel').textContent = d.verdict;
+    document.getElementById('verdictSub').textContent =
+      `${d.platform} · ${d.file_type} · Scanned in ${d.scan_time_s}s`;
+
+    const scorePct = Math.round(d.final_score * 100);
+    document.getElementById('scoreBig').className  = 'score-big ' + v;
+    document.getElementById('scoreBig').textContent = scorePct + '%';
+
+    // Score bar
+    const fill = document.getElementById('scoreFill');
+    fill.className = 'score-fill ' + v;
+    setTimeout(() => { fill.style.width = scorePct + '%'; }, 50);
+
+    // Details
+    document.getElementById('dFilename').textContent  = d.filename;
+    document.getElementById('dPlatform').textContent  = d.platform + ' (' + d.file_type + ')';
+    document.getElementById('dSize').textContent      = d.size;
+    document.getElementById('dHash').textContent      = d.sha256;
+
+    const confEl = document.getElementById('dConfidence');
+    confEl.innerHTML = `<span class="conf-chip ${d.confidence}">${d.confidence}</span>`;
+
+    // Model bars
+    setBar('lgbm',     d.lgbm_score);
+    setBar('malconv',  d.malconv_score);
+    setBar('ensemble', d.final_score);
+
+    resultCard.classList.add('visible');
+  }
+
+  function setBar(id, score) {
+    const pct = Math.round(score * 100);
+    setTimeout(() => {
+      document.getElementById(id + 'Bar').style.width = pct + '%';
+    }, 100);
+    document.getElementById(id + 'Val').textContent = pct + '%';
+  }
+
+  // ── Show error ────────────────────────────────────────
+  function showError(msg) {
+    errorCard.textContent = '⚠ ERROR: ' + msg;
+    errorCard.classList.add('visible');
+  }
+
+  // ── History ───────────────────────────────────────────
+  function addHistory(d) {
+    history.unshift(d);
+    if (history.length > 20) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyList.innerHTML = '<div class="empty-history">No scans yet — drop a file above to begin</div>';
+      return;
+    }
+    historyList.innerHTML = history.map(d => `
+      <div class="history-item">
+        <span class="h-verdict ${d.verdict}">${d.verdict}</span>
+        <span class="h-name">${escHtml(d.filename)}</span>
+        <span class="h-platform">${d.platform}</span>
+        <span class="h-score">${Math.round(d.final_score * 100)}%</span>
+      </div>
+    `).join('');
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>
