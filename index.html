@@ -782,6 +782,14 @@
   }
 
   function setBar(id, score) {
+    if (score === null || score === undefined || Number.isNaN(Number(score))) {
+      setTimeout(() => {
+        document.getElementById(id + 'Bar').style.width = '0%';
+      }, 100);
+      document.getElementById(id + 'Val').textContent = 'unavailable';
+      return;
+    }
+
     const pct = Math.round(score * 100);
     setTimeout(() => {
       document.getElementById(id + 'Bar').style.width = pct + '%';

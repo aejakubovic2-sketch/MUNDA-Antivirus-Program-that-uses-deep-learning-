@@ -159,14 +159,38 @@ def _print_scan_result(result: dict):
     Platform:    {result['platform']}
     Size:        {result['size']}
     Confidence:  {result['confidence']}
-    Final Score: {result['final_score']:.4f}
-    LightGBM:    {result['lgbm_score']:.4f}
-    MalConv2:    {result['malconv_score']:.4f}
+    Final Score: {_format_score(result['final_score'])}
+    LightGBM:    {_format_score(result['lgbm_score'])}
+    MalConv2:    {_format_score(result['malconv_score'])}
+    Method:      {result['method']}
     SHA256:      {result['sha256'][:36]}
     Scan time:   {result['scan_time_s']}s
 """
     )
+    for model, error in result.get('model_errors', {}).items():
+        print(f"  Warning: {model} unavailable: {error}")
+
+
+def _format_score(score) -> str:
+    if score is None:
+        return 'unavailable'
+    return f"{score:.4f}"
+
+
+def _print_startup_error(message: str) -> None:
+    print(f"\n[CrossGuard] {message}")
+    print("Install dependencies with:")
+    print("  python3 -m pip install -r requirements.txt")
+    print("Then download the models with:")
+    print("  python3 main.py --download-models")
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ModuleNotFoundError as e:
+        _print_startup_error(f"Missing Python dependency: {e.name}")
+        sys.exit(1)
+    except RuntimeError as e:
+        _print_startup_error(str(e))
+        sys.exit(1)

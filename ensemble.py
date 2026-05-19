@@ -43,24 +43,47 @@ class EnsembleDetector:
         Returns dict:
           {
             'final_score':    float,   # 0=clean, 1=malware
-            'lgbm_score':     float,
-            'malconv_score':  float,
+            'lgbm_score':     float | None,
+            'malconv_score':  float | None,
             'verdict':        str,     # 'MALWARE' | 'SUSPICIOUS' | 'CLEAN'
             'confidence':     str,     # 'HIGH' | 'MEDIUM' | 'LOW'
             'method':         str,
           }
         """
-        lgbm_score    = self._get_lgbm_score(feature_vector, file_type)
-        malconv_score = self._get_malconv_score(filepath)
-        final_score   = self._combine(lgbm_score, malconv_score)
+        scores = {}
+        errors = {}
+
+        try:
+            scores['lgbm'] = self.lgbm.predict(feature_vector, file_type)
+        except Exception as e:
+            errors['lgbm'] = str(e)
+
+        try:
+            scores['malconv'] = self.malconv.predict(filepath)
+        except Exception as e:
+            errors['malconv'] = str(e)
+
+        if not scores:
+            details = '; '.join(
+                f"{model}: {error}" for model, error in errors.items()
+            )
+            raise RuntimeError(
+                "No malware detection model is available. "
+                f"Model errors: {details}"
+            )
+
+        lgbm_score = scores.get('lgbm')
+        malconv_score = scores.get('malconv')
+        final_score = self._combine_available(scores)
 
         return {
             'final_score':   round(final_score, 4),
-            'lgbm_score':    round(lgbm_score, 4),
-            'malconv_score': round(malconv_score, 4),
+            'lgbm_score':    self._round_score(lgbm_score),
+            'malconv_score': self._round_score(malconv_score),
             'verdict':       self._verdict(final_score),
             'confidence':    self._confidence(lgbm_score, malconv_score, final_score),
-            'method':        self.method,
+            'method':        self._method_used(scores),
+            'model_errors':  errors,
         }
 
     # ── Score combination ────────────────────────────────
@@ -84,21 +107,24 @@ class EnsembleDetector:
 
         raise ValueError(f"Unknown method: {self.method}")
 
+    def _combine_available(self, scores: dict) -> float:
+        if 'lgbm' in scores and 'malconv' in scores:
+            return self._combine(scores['lgbm'], scores['malconv'])
+
+        return next(iter(scores.values()))
+
+    def _method_used(self, scores: dict) -> str:
+        if 'lgbm' in scores and 'malconv' in scores:
+            return self.method
+        return next(iter(scores.keys()))
+
     # ── Individual model wrappers ────────────────────────
 
     def _get_lgbm_score(self, feature_vector: np.ndarray, file_type: str) -> float:
-        try:
-            return self.lgbm.predict(feature_vector, file_type)
-        except Exception as e:
-            print(f"[Ensemble] LightGBM error: {e}")
-            return 0.5   # neutral score on failure
+        return self.lgbm.predict(feature_vector, file_type)
 
     def _get_malconv_score(self, filepath: str) -> float:
-        try:
-            return self.malconv.predict(filepath)
-        except Exception as e:
-            print(f"[Ensemble] MalConv2 error: {e}")
-            return 0.5   # neutral score on failure
+        return self.malconv.predict(filepath)
 
     # ── Meta-learner training ────────────────────────────
 
@@ -179,12 +205,20 @@ class EnsembleDetector:
         return 'CLEAN'
 
     @staticmethod
+    def _round_score(score) -> float:
+        if score is None:
+            return None
+        return round(float(score), 4)
+
+    @staticmethod
     def _confidence(lgbm: float, malconv: float, final: float) -> str:
         """
         HIGH   — both models agree strongly
         MEDIUM — both models agree but score is in mid-range
         LOW    — models disagree with each other
         """
+        if lgbm is None or malconv is None:
+            return 'LOW'
         agreement = abs(lgbm - malconv)
         if agreement < 0.15 and (final > 0.80 or final < 0.20):
             return 'HIGH'

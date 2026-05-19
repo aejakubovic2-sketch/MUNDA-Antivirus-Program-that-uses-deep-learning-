@@ -12,8 +12,15 @@ from typing import Optional
 from file_identifier import identify_file, format_size
 from feature_extractor import extract_features
 from lightgbm_model import LightGBMDetector
-from malconv2_model import MalConv2Detector
 from ensemble import EnsembleDetector
+
+
+class _UnavailableDetector:
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    def predict(self, *_args, **_kwargs) -> float:
+        raise RuntimeError(self.reason)
 
 
 class Scanner:
@@ -34,7 +41,7 @@ class Scanner:
         """
         print("[Scanner] Initialising CrossGuard...")
         self.lgbm    = LightGBMDetector()
-        self.malconv = MalConv2Detector(device=device)
+        self.malconv = self._init_malconv(device)
         self.ensemble = EnsembleDetector(self.lgbm, self.malconv, method=method)
         print(f"[Scanner] Ready. Ensemble method: {method}")
 
@@ -96,6 +103,7 @@ class Scanner:
 
             # Meta
             'method':        result['method'],
+            'model_errors':  result.get('model_errors', {}),
             'scan_time_s':   elapsed,
         }
 
@@ -132,6 +140,20 @@ class Scanner:
         return results
 
     # ── Helpers ──────────────────────────────────────────
+
+    @staticmethod
+    def _init_malconv(device: str = None):
+        if os.environ.get('CROSSGUARD_ENABLE_MALCONV2') != '1':
+            return _UnavailableDetector(
+                "MalConv2 is disabled because no public pretrained checkpoint is configured."
+            )
+
+        try:
+            from malconv2_model import MalConv2Detector
+            return MalConv2Detector(device=device)
+        except Exception as e:
+            print(f"[Scanner] MalConv2 unavailable: {e}")
+            return _UnavailableDetector(str(e))
 
     @staticmethod
     def _sha256(filepath: str) -> str:

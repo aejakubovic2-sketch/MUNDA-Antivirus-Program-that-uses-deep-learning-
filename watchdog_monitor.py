@@ -242,12 +242,18 @@ class AutoScanner:
         print(f"\n[{ts}] {icons.get(v,'?')} {v}")
         print(f"  File:     {result['filename']}")
         print(f"  Platform: {result['platform']}")
-        print(f"  Score:    {result['final_score']:.4f}  "
-              f"(LightGBM={result['lgbm_score']:.3f}, "
-              f"MalConv2={result['malconv_score']:.3f})")
+        print(f"  Score:    {_format_score(result['final_score'])}  "
+              f"(LightGBM={_format_score(result['lgbm_score'])}, "
+              f"MalConv2={_format_score(result['malconv_score'])})")
         print(f"  Confidence: {result['confidence']}")
         if v == 'MALWARE':
             print(f"  ⛔ SHA256: {result['sha256']}")
+
+
+def _format_score(score) -> str:
+    if score is None:
+        return 'unavailable'
+    return f"{score:.4f}"
 
 
 # ── CLI entry point ──────────────────────────────────────

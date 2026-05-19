@@ -1,7 +1,7 @@
 # Core ML
 lightgbm>=4.0.0
 torch>=2.0.0
-numpy>=1.24.0
+numpy>=1.24.0,<2
 scikit-learn>=1.3.0
 
 # EMBER2024 feature extraction
@@ -10,6 +10,7 @@ pefile>=2023.2.7
 
 # Dataset
 huggingface-hub>=0.20.0
+git+https://github.com/FutureComputing4AI/EMBER2024.git
 
 # Web dashboard
 flask>=3.0.0
