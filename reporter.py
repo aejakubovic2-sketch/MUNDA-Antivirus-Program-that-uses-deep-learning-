@@ -73,7 +73,10 @@ class ReportGenerator:
 
     def _summary(self) -> dict:
         verdicts = [r.get('verdict', 'UNKNOWN') for r in self.results]
-        scores   = [r.get('final_score', 0) for r in self.results]
+        scores = [
+            r.get('final_score', 0) for r in self.results
+            if r.get('final_score') is not None
+        ]
         return {
             'total':      len(self.results),
             'malware':    verdicts.count('MALWARE'),
@@ -132,11 +135,17 @@ class ReportGenerator:
                 f"| Platform: {r.get('platform', '?')}  "
                 f"| Size: {r.get('size', '?')}  "
                 f"| Confidence: {r.get('confidence', '?')}",
-                f"           LightGBM={r.get('lgbm_score', 0):.4f}  "
-                f"MalConv2={r.get('malconv_score', 0):.4f}",
+                f"           LightGBM={_format_score(r.get('lgbm_score'))}  "
+                f"MalConv2={_format_score(r.get('malconv_score'))}",
                 f"           SHA256: {r.get('sha256', '?')[:64]}",
                 '',
             ]
 
         lines.append('=' * 80)
         return '\n'.join(lines)
+
+
+def _format_score(score) -> str:
+    if score is None:
+        return 'unavailable'
+    return f"{score:.4f}"

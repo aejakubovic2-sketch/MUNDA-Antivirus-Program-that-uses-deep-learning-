@@ -140,7 +140,7 @@ class Evaluator:
                 DATASET_DIR, subset='test'
             )
         except ImportError:
-            logger.error("thrember not installed. Run: pip install thrember")
+            logger.error("thrember not installed. Run: pip install -r requirements.txt")
             return {}
         except Exception as e:
             logger.error(f"Could not load test set: {e}")

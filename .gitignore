@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+
+# Downloaded datasets, model checkpoints, logs, and generated reports.
+data/
+logs/
+reports/
+
+# Local environment files.
+.env
+.venv/
+venv/

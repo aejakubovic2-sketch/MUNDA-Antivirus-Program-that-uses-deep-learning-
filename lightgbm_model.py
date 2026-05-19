@@ -17,15 +17,15 @@ class LightGBMDetector:
     Predicts a malware probability score (0.0 = clean, 1.0 = malware).
     """
 
-    # Map file type → which of the 14 EMBER2024 models to use
+    # Map file type → official EMBER2024 HuggingFace model filenames.
     MODEL_MAP = {
-        'WIN32':   'lgbm_win32.txt',
-        'WIN64':   'lgbm_win64.txt',
-        'DOTNET':  'lgbm_dotnet.txt',
-        'ELF':     'lgbm_elf.txt',
-        'APK':     'lgbm_apk.txt',
-        'PDF':     'lgbm_pdf.txt',
-        'UNKNOWN': 'lgbm_all.txt',    # fallback: all-format model
+        'WIN32':   'EMBER2024_Win32.model',
+        'WIN64':   'EMBER2024_Win64.model',
+        'DOTNET':  'EMBER2024_Dot_Net.model',
+        'ELF':     'EMBER2024_ELF.model',
+        'APK':     'EMBER2024_APK.model',
+        'PDF':     'EMBER2024_PDF.model',
+        'UNKNOWN': 'EMBER2024_all.model',    # fallback: all-format model
     }
 
     def __init__(self):
@@ -83,6 +83,17 @@ class LightGBMDetector:
         return os.path.isfile(
             os.path.join(MODEL_CACHE, self.MODEL_MAP['UNKNOWN'])
         )
+
+    def ensure_available(self, file_type: str = 'UNKNOWN') -> None:
+        """Download and load a model if it is not already cached."""
+        self._load_model(file_type)
+
+    def download_all(self) -> None:
+        """Download all configured LightGBM model files."""
+        for filename in self.MODEL_MAP.values():
+            model_path = os.path.join(MODEL_CACHE, filename)
+            if not os.path.isfile(model_path):
+                self._download_model(filename, model_path)
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray,
               X_val: np.ndarray = None, y_val: np.ndarray = None,

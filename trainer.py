@@ -17,7 +17,7 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 def download_dataset():
     """
     Download EMBER2024 dataset from HuggingFace.
-    Requires: pip install thrember huggingface-hub
+    Requires: pip install -r requirements.txt
     """
     print("[Trainer] Downloading EMBER2024 dataset...")
     print("[Trainer] This may take a while (3.2M files).")
@@ -26,7 +26,7 @@ def download_dataset():
         thrember.download_dataset(DATA_DIR)
         print("[Trainer] Dataset downloaded.")
     except ImportError:
-        print("[Trainer] thrember not installed. Run: pip install thrember")
+        print("[Trainer] thrember not installed. Run: pip install -r requirements.txt")
         print("[Trainer] Or clone: https://github.com/FutureComputing4AI/EMBER2024")
     except Exception as e:
         print(f"[Trainer] Download failed: {e}")
@@ -34,17 +34,20 @@ def download_dataset():
 
 def download_pretrained_models():
     """
-    Download the 14 official EMBER2024 pretrained LightGBM models.
+    Download the pretrained LightGBM models and the MalConv2 checkpoint.
     """
     print("[Trainer] Downloading EMBER2024 pretrained LightGBM models...")
     try:
-        import thrember
-        thrember.download_models(DATA_DIR)
-        print("[Trainer] Models downloaded.")
-    except ImportError:
-        print("[Trainer] thrember not installed. Run: pip install thrember")
+        from lightgbm_model import LightGBMDetector
+        LightGBMDetector().download_all()
+        print("[Trainer] LightGBM models downloaded.")
+    except ModuleNotFoundError as e:
+        print(f"[Trainer] {e.name} not installed. Run: pip install -r requirements.txt")
     except Exception as e:
-        print(f"[Trainer] Failed: {e}")
+        print(f"[Trainer] LightGBM download failed: {e}")
+
+    print("[Trainer] MalConv2 checkpoint download skipped.")
+    print("[Trainer] No public MalConv2 checkpoint is configured; scans will use LightGBM unless you train or add one.")
 
 
 def train_lightgbm(file_type: str = 'all'):

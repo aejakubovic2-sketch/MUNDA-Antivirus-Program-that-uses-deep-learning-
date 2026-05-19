@@ -31,13 +31,17 @@ class GlobalChannelGating(nn.Module):
     Allows the model to focus on malicious regions anywhere in the file.
     """
 
-    def __init__(self, num_filters: int, window: int):
+    def __init__(self, input_channels: int, num_filters: int, window: int):
         super().__init__()
-        self.conv_h = nn.Conv1d(257, num_filters, window, padding=window // 2, bias=True)
-        self.conv_g = nn.Conv1d(257, num_filters, window, padding=window // 2, bias=True)
+        self.conv_h = nn.Conv1d(
+            input_channels, num_filters, window, padding=window // 2, bias=True
+        )
+        self.conv_g = nn.Conv1d(
+            input_channels, num_filters, window, padding=window // 2, bias=True
+        )
 
     def forward(self, x):
-        # x: (batch, 257, seq_len) after embedding
+        # x: (batch, emb_size, seq_len) after embedding
         H = self.conv_h(x)                  # base features
         G = torch.sigmoid(self.conv_g(x))   # gating weights
         return H * G                         # gated output
@@ -65,7 +69,7 @@ class MalConv2(nn.Module):
         self.embedding = nn.Embedding(257, emb_size, padding_idx=256)
 
         # GCG convolutional block
-        self.gcg = GlobalChannelGating(num_filters, filter_size)
+        self.gcg = GlobalChannelGating(emb_size, num_filters, filter_size)
 
         # Classifier head
         self.fc1 = nn.Linear(num_filters, 128)
@@ -179,14 +183,20 @@ class MalConv2Detector:
             )
             print(f"[MalConv2] Downloaded → {dest_path}")
         except Exception as e:
-            print(f"[MalConv2] Warning: Could not download pretrained model: {e}")
-            print("[MalConv2] Initialising with random weights — train before use.")
-            os.makedirs(MODEL_CACHE, exist_ok=True)
-            model = MalConv2()
-            torch.save(model.state_dict(), dest_path)
+            raise RuntimeError(
+                "Could not download the MalConv2 pretrained model.\n"
+                "Please install the dependencies, check your network connection, "
+                "or place a trained checkpoint at:\n"
+                f"  {dest_path}\n"
+                f"Original error: {e}"
+            ) from e
 
     def is_available(self) -> bool:
         return os.path.isfile(os.path.join(MODEL_CACHE, MODEL_FILE))
+
+    def ensure_available(self) -> None:
+        """Download and load the checkpoint if it is not already cached."""
+        self._load_model()
 
     # ── Training ─────────────────────────────────────────
 
