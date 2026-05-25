@@ -13,13 +13,16 @@ MUNDA is a cross-platform malware detection system that uses:
 Unsupported file types are reported as `UNSUPPORTED` with an `N/A` score instead of receiving a misleading threat percentage.
 
 ## Supported Platforms
-| Platform | Format |
+This table describes the files MUNDA can scan, not the operating system running MUNDA. The dashboard can run on macOS, but macOS app formats are not currently supported scan targets.
+
+| Target platform | Scan support |
 |---|---|
-| Windows 32/64-bit | .exe, .dll, .sys |
-| Android | .apk |
-| Linux | .elf, ELF binaries |
-| Documents | .pdf |
-| .NET apps | .NET assemblies |
+| Windows 32/64-bit | Supported: `.exe`, `.dll`, `.sys` |
+| Windows .NET apps | Supported: .NET assemblies |
+| Android | Supported: `.apk` |
+| Linux | Supported: ELF binaries, `.elf` |
+| Documents | Supported: `.pdf` |
+| macOS | Not supported yet: `.app`, `.dmg`, Mach-O binaries |
 
 ## Project Structure
 ```
