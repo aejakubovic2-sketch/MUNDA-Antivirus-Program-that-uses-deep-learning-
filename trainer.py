@@ -48,8 +48,15 @@ def download_pretrained_models():
     except Exception as e:
         print(f"[Trainer] LightGBM download failed: {e}")
 
-    print("[Trainer] MalConv2 checkpoint download skipped.")
-    print("[Trainer] No public MalConv2 checkpoint is configured; scans will use LightGBM unless you train or add one.")
+    print("[Trainer] Downloading MalConv2 checkpoint...")
+    try:
+        from malconv2_model import MalConv2Detector
+        MalConv2Detector().ensure_available()
+        print("[Trainer] MalConv2 checkpoint ready.")
+    except ModuleNotFoundError as e:
+        print(f"[Trainer] {e.name} not installed. Run: pip install -r requirements.txt")
+    except Exception as e:
+        print(f"[Trainer] MalConv2 download failed: {e}")
 
 
 def train_lightgbm(file_type: str = 'all'):

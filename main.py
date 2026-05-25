@@ -26,7 +26,7 @@ def main():
     parser = argparse.ArgumentParser(
         prog='munda',
         description='MUNDA - Malware Detection\n'
-        'Dataset: EMBER2024 | Model: LightGBM',
+        'Dataset: EMBER2024 | Models: LightGBM + MalConv2',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -142,7 +142,7 @@ def _print_banner():
   ==================================================
     MUNDA - Malware Detector
     Dataset:  EMBER2024 (3.2M files, 6 formats)
-    Model:    LightGBM
+    Models:   LightGBM + MalConv2 for PE files
     Coverage: Windows | Linux | Android | PDF
   ==================================================
 """
