@@ -1,6 +1,6 @@
 """
 main.py
-CrossGuard - Cross-Platform Malware Detector
+MUNDA - Malware Detector
 Entry point for CLI usage.
 
 Usage:
@@ -24,9 +24,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 def main():
     parser = argparse.ArgumentParser(
-        prog='crossguard',
-        description='CrossGuard - Cross-Platform Malware Detection\n'
-        'Dataset: EMBER2024 | Models: LightGBM + MalConv2 Ensemble',
+        prog='munda',
+        description='MUNDA - Malware Detection\n'
+        'Dataset: EMBER2024 | Model: LightGBM',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -120,10 +120,12 @@ def main():
         print(f"\n  Scanned {len(results)} files.")
         malware_count = sum(1 for r in results if r['verdict'] == 'MALWARE')
         suspicious_count = sum(1 for r in results if r['verdict'] == 'SUSPICIOUS')
-        clean_count = len(results) - malware_count - suspicious_count
+        unsupported_count = sum(1 for r in results if r['verdict'] == 'UNSUPPORTED')
+        clean_count = len(results) - malware_count - suspicious_count - unsupported_count
         print(f"  Malware:    {malware_count}")
         print(f"  Suspicious: {suspicious_count}")
         print(f"  Clean:      {clean_count}")
+        print(f"  Unsupported:{unsupported_count}")
         if args.output_json:
             with open(args.output_json, 'w', encoding='utf-8') as f:
                 json.dump(results, f, indent=2)
@@ -138,9 +140,9 @@ def _print_banner():
     print(
         """
   ==================================================
-    CROSSGUARD - Cross-Platform Malware Detector
+    MUNDA - Malware Detector
     Dataset:  EMBER2024 (3.2M files, 6 formats)
-    Models:   LightGBM + MalConv2 Ensemble
+    Model:    LightGBM
     Coverage: Windows | Linux | Android | PDF
   ==================================================
 """
@@ -148,7 +150,7 @@ def _print_banner():
 
 
 def _print_scan_result(result: dict):
-    icons = {'MALWARE': '[!]', 'SUSPICIOUS': '[?]', 'CLEAN': '[OK]'}
+    icons = {'MALWARE': '[!]', 'SUSPICIOUS': '[?]', 'CLEAN': '[OK]', 'UNSUPPORTED': '[--]'}
     verdict = result['verdict']
     print(
         f"""
@@ -178,7 +180,7 @@ def _format_score(score) -> str:
 
 
 def _print_startup_error(message: str) -> None:
-    print(f"\n[CrossGuard] {message}")
+    print(f"\n[MUNDA] {message}")
     print("Install dependencies with:")
     print("  python3 -m pip install -r requirements.txt")
     print("Then download the models with:")

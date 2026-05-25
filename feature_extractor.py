@@ -12,6 +12,8 @@ import math
 import re
 import struct
 import zipfile
+import tempfile
+from functools import lru_cache
 from collections import Counter
 from typing import Optional
 import numpy as np
@@ -33,6 +35,13 @@ def extract_features(filepath: str) -> np.ndarray:
     with open(filepath, 'rb') as f:
         raw = f.read()
 
+    official_extractor = _get_official_extractor()
+    if official_extractor is not None:
+        try:
+            return official_extractor.feature_vector(raw).astype(np.float32)
+        except Exception:
+            pass
+
     vec = np.zeros(VECTOR_SIZE, dtype=np.float32)
 
     # --- Segment 1: General file info (4 dims, index 0-3) ---
@@ -52,6 +61,32 @@ def extract_features(filepath: str) -> np.ndarray:
         _fill_pe_features(vec, raw, filepath, offset=636)
 
     return vec
+
+
+@lru_cache(maxsize=1)
+def _get_official_extractor():
+    """
+    Prefer the EMBER2024 package extractor when it is installed.
+
+    The bundled LightGBM models were trained with thrember's 2,568-dimensional
+    feature layout. The local extractor below remains as a fallback so scanning
+    still works if thrember is unavailable.
+    """
+    try:
+        os.environ.setdefault(
+            'MPLCONFIGDIR',
+            os.path.join(tempfile.gettempdir(), 'munda-matplotlib'),
+        )
+
+        import signify.authenticode as authenticode
+        if not hasattr(authenticode, 'SignedPEFile'):
+            from signify.authenticode.signed_file import SignedPEFile
+            authenticode.SignedPEFile = SignedPEFile
+
+        import thrember
+        return thrember.PEFeatureExtractor()
+    except Exception:
+        return None
 
 
 # ── Segment fillers ───────────────────────────────────────────────────────────
