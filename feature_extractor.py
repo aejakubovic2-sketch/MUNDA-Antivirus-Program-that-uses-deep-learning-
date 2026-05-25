@@ -7,12 +7,10 @@ For non-PE files only the first 696 dimensions are fully populated
 (general info + byte histograms + string stats) as per the EMBER2024 paper.
 """
 
-import os
 import math
 import re
 import struct
 import zipfile
-import tempfile
 from functools import lru_cache
 from collections import Counter
 from typing import Optional
@@ -73,18 +71,8 @@ def _get_official_extractor():
     still works if thrember is unavailable.
     """
     try:
-        os.environ.setdefault(
-            'MPLCONFIGDIR',
-            os.path.join(tempfile.gettempdir(), 'munda-matplotlib'),
-        )
-
-        import signify.authenticode as authenticode
-        if not hasattr(authenticode, 'SignedPEFile'):
-            from signify.authenticode.signed_file import SignedPEFile
-            authenticode.SignedPEFile = SignedPEFile
-
-        import thrember
-        return thrember.PEFeatureExtractor()
+        from ember_compat import get_thrember
+        return get_thrember().PEFeatureExtractor()
     except Exception:
         return None
 

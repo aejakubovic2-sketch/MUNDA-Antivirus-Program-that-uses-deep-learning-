@@ -16,6 +16,7 @@ from settings import (
     REPORT_DIR,
 )
 from logger import get_logger
+from ember_compat import get_thrember
 
 logger = get_logger('evaluator')
 
@@ -129,13 +130,13 @@ class Evaluator:
         """
         Full evaluation. Returns dict of all metrics.
         """
-        logger.info("Starting CrossGuard evaluation...")
+        logger.info("Starting MUNDA evaluation...")
         start = time.time()
 
         # Load EMBER2024 test features
         try:
-            import thrember
             from settings import DATASET_DIR
+            thrember = get_thrember()
             X_test, y_test = thrember.read_vectorized_features(
                 DATASET_DIR, subset='test'
             )
@@ -179,8 +180,8 @@ class Evaluator:
     def _eval_challenge(self) -> dict:
         logger.info("Evaluating on EMBER2024 challenge set (evasive malware)...")
         try:
-            import thrember
             from settings import DATASET_DIR
+            thrember = get_thrember()
             X_ch, y_ch = thrember.read_vectorized_features(
                 DATASET_DIR, subset='challenge'
             )
