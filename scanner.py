@@ -13,6 +13,7 @@ from file_identifier import identify_file, format_size
 from feature_extractor import extract_features
 from lightgbm_model import LightGBMDetector
 from ensemble import EnsembleDetector
+from settings import SUPPORTED_TYPES
 
 
 class _UnavailableDetector:
@@ -25,7 +26,7 @@ class _UnavailableDetector:
 
 class Scanner:
     """
-    CrossGuard malware scanner.
+    MUNDA malware scanner.
 
     Usage:
         scanner = Scanner()
@@ -39,7 +40,7 @@ class Scanner:
             method: ensemble method — 'meta' | 'weighted' | 'average'
             device: torch device — 'cuda' | 'cpu' | None (auto-detect)
         """
-        print("[Scanner] Initialising CrossGuard...")
+        print("[Scanner] Initialising MUNDA...")
         self.lgbm    = LightGBMDetector()
         self.malconv = self._init_malconv(device)
         self.ensemble = EnsembleDetector(self.lgbm, self.malconv, method=method)
@@ -68,6 +69,12 @@ class Scanner:
         # Step 2: Compute SHA256 hash
         sha256 = self._sha256(filepath)
 
+        if file_type not in SUPPORTED_TYPES:
+            elapsed = round(time.time() - start_time, 3)
+            return self._unsupported_result(
+                filepath, file_type, platform, size, sha256, elapsed
+            )
+
         # Step 3: Extract EMBER v3 features
         try:
             features = extract_features(filepath)
@@ -76,7 +83,7 @@ class Scanner:
             import numpy as np
             features = __import__('numpy').zeros(2568, dtype='float32')
 
-        # Step 4: Run ensemble (LightGBM + MalConv2)
+        # Step 4: Run available detector models.
         result = self.ensemble.predict(features, filepath, file_type)
 
         elapsed = round(time.time() - start_time, 3)
@@ -136,7 +143,10 @@ class Scanner:
             if not recursive:
                 break
 
-        results.sort(key=lambda r: r['final_score'], reverse=True)
+        results.sort(
+            key=lambda r: r['final_score'] if r['final_score'] is not None else -1,
+            reverse=True,
+        )
         return results
 
     # ── Helpers ──────────────────────────────────────────
@@ -164,13 +174,46 @@ class Scanner:
         return h.hexdigest()
 
     @staticmethod
+    def _unsupported_result(filepath: str, file_type: str, platform: str,
+                            size: int, sha256: str, elapsed: float) -> dict:
+        return {
+            'filepath':      filepath,
+            'filename':      os.path.basename(filepath),
+            'file_type':     file_type,
+            'platform':      platform,
+            'size':          format_size(size),
+            'size_bytes':    size,
+            'sha256':        sha256,
+            'final_score':   None,
+            'lgbm_score':    None,
+            'malconv_score': None,
+            'verdict':       'UNSUPPORTED',
+            'confidence':    'N/A',
+            'is_malware':    False,
+            'method':        'none',
+            'model_errors': {
+                'scanner': (
+                    'Unsupported file type. MUNDA currently scans PE, ELF, APK, '
+                    'PDF, and .NET files with the LightGBM model.'
+                )
+            },
+            'scan_time_s':   elapsed,
+        }
+
+    @staticmethod
     def _print_result(result: dict) -> None:
         icon = {'MALWARE': '[!]', 'SUSPICIOUS': '[?]', 'CLEAN': '[OK]'}
         v    = result['verdict']
         print(
             f"{icon.get(v, '?')} [{v:<10}] "
             f"{result['filename']:<40} "
-            f"score={result['final_score']:.3f}  "
+            f"score={_format_score(result['final_score'])}  "
             f"({result['platform']})  "
             f"{result['scan_time_s']}s"
         )
+
+
+def _format_score(score) -> str:
+    if score is None:
+        return 'N/A'
+    return f"{score:.3f}"

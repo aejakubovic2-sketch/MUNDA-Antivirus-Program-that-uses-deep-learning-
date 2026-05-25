@@ -218,10 +218,24 @@ class EnsembleDetector:
         LOW    — models disagree with each other
         """
         if lgbm is None or malconv is None:
-            return 'LOW'
+            return EnsembleDetector._single_model_confidence(final)
         agreement = abs(lgbm - malconv)
         if agreement < 0.15 and (final > 0.80 or final < 0.20):
             return 'HIGH'
         elif agreement < 0.30:
+            return 'MEDIUM'
+        return 'LOW'
+
+    @staticmethod
+    def _single_model_confidence(score: float) -> str:
+        """
+        Confidence when only one detector is available.
+
+        With no second model to compare against, confidence is based on how far
+        the score is from the uncertain middle range rather than forced to LOW.
+        """
+        if score >= 0.85 or score <= 0.20:
+            return 'HIGH'
+        if score >= 0.60 or score <= 0.40:
             return 'MEDIUM'
         return 'LOW'

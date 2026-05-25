@@ -1,6 +1,6 @@
 """
 app.py
-CrossGuard Web Dashboard - Flask backend.
+MUNDA Web Dashboard - Flask backend.
 Run with: python app.py
 """
 
@@ -71,10 +71,10 @@ def status():
         'status': 'running',
         'scanner_loaded': _scanner is not None,
         'version': '1.0.0',
-        'name': 'CrossGuard',
+        'name': 'MUNDA',
     })
 
 
 if __name__ == '__main__':
-    print("CrossGuard Dashboard starting at http://localhost:5000")
+    print("MUNDA Dashboard starting at http://localhost:5000")
     app.run(debug=False, host='0.0.0.0', port=5000)

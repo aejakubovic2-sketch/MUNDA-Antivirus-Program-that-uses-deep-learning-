@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CrossGuard — Malware Detection</title>
+<title>MUNDA — Malware Detection</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -266,6 +266,7 @@
   .result-header.malware  { background: rgba(255,61,110,0.12); border-bottom: 1px solid rgba(255,61,110,0.3); }
   .result-header.suspicious { background: rgba(255,204,0,0.10); border-bottom: 1px solid rgba(255,204,0,0.3); }
   .result-header.clean    { background: rgba(0,255,136,0.08); border-bottom: 1px solid rgba(0,255,136,0.2); }
+  .result-header.unsupported { background: rgba(138,160,188,0.08); border-bottom: 1px solid rgba(138,160,188,0.25); }
 
   .verdict-icon {
     font-size: 40px;
@@ -283,6 +284,7 @@
   .verdict-label.malware    { color: var(--accent2); }
   .verdict-label.suspicious { color: var(--yellow); }
   .verdict-label.clean      { color: var(--green); }
+  .verdict-label.unsupported { color: var(--dim); }
 
   .verdict-sub {
     font-family: var(--font-mono);
@@ -305,6 +307,7 @@
   .score-big.malware    { color: var(--accent2); }
   .score-big.suspicious { color: var(--yellow); }
   .score-big.clean      { color: var(--green); }
+  .score-big.unsupported { color: var(--dim); }
 
   .score-label {
     font-family: var(--font-mono);
@@ -336,6 +339,7 @@
   .score-fill.malware    { background: linear-gradient(90deg, #ff3d6e, #ff8c00); }
   .score-fill.suspicious { background: linear-gradient(90deg, #ffcc00, #ff8c00); }
   .score-fill.clean      { background: linear-gradient(90deg, #00ff88, #00e5ff); }
+  .score-fill.unsupported { background: #8aa0bc; }
 
   .score-markers {
     display: flex;
@@ -461,6 +465,7 @@
   .h-verdict.MALWARE    { color: var(--accent2); }
   .h-verdict.SUSPICIOUS { color: var(--yellow); }
   .h-verdict.CLEAN      { color: var(--green); }
+  .h-verdict.UNSUPPORTED { color: var(--dim); }
 
   .h-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .h-platform { color: var(--dim); width: 80px; }
@@ -479,6 +484,7 @@
   .conf-chip.HIGH   { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
   .conf-chip.MEDIUM { background: rgba(255,204,0,0.15); color: var(--yellow); border: 1px solid rgba(255,204,0,0.3); }
   .conf-chip.LOW    { background: rgba(255,61,110,0.15); color: var(--accent2); border: 1px solid rgba(255,61,110,0.3); }
+  .conf-chip.NA     { background: rgba(138,160,188,0.12); color: var(--dim); border: 1px solid rgba(138,160,188,0.25); }
 
   /* ── Empty state ── */
   .empty-history {
@@ -525,14 +531,14 @@
       </svg>
     </div>
     <div>
-      <div class="logo-text">CROSSGUARD</div>
-      <div class="logo-sub">CROSS-PLATFORM MALWARE DETECTION v1.0</div>
+      <div class="logo-text">MUNDA</div>
+      <div class="logo-sub">MALWARE DETECTION v1.0</div>
     </div>
   </div>
   <div class="header-stats">
     <div class="stat-pill">ENGINE <span>EMBER2024</span></div>
-    <div class="stat-pill">MODELS <span>LightGBM + MalConv2</span></div>
-    <div class="stat-pill">AUC <span>~99.9%</span></div>
+    <div class="stat-pill">MODEL <span>LightGBM</span></div>
+    <div class="stat-pill">FILES <span>PE / ELF / APK / PDF</span></div>
   </div>
 </header>
 
@@ -671,8 +677,7 @@
     'Identifying file type...',
     'Extracting EMBER v3 features...',
     'Running LightGBM classifier...',
-    'Running MalConv2 neural network...',
-    'Combining ensemble scores...',
+    'Calibrating confidence...',
     'Finalising verdict...',
   ];
 
@@ -745,7 +750,7 @@
   // ── Show result ───────────────────────────────────────
   function showResult(d) {
     const v = d.verdict.toLowerCase();
-    const icons = { malware: '🚨', suspicious: '⚠️', clean: '✅' };
+    const icons = { malware: '🚨', suspicious: '⚠️', clean: '✅', unsupported: '⊘' };
 
     // Header
     document.getElementById('resultHeader').className = 'result-header ' + v;
@@ -755,14 +760,14 @@
     document.getElementById('verdictSub').textContent =
       `${d.platform} · ${d.file_type} · Scanned in ${d.scan_time_s}s`;
 
-    const scorePct = Math.round(d.final_score * 100);
+    const scorePct = formatPct(d.final_score);
     document.getElementById('scoreBig').className  = 'score-big ' + v;
-    document.getElementById('scoreBig').textContent = scorePct + '%';
+    document.getElementById('scoreBig').textContent = scorePct;
 
     // Score bar
     const fill = document.getElementById('scoreFill');
     fill.className = 'score-fill ' + v;
-    setTimeout(() => { fill.style.width = scorePct + '%'; }, 50);
+    setTimeout(() => { fill.style.width = scorePct === 'N/A' ? '0%' : scorePct; }, 50);
 
     // Details
     document.getElementById('dFilename').textContent  = d.filename;
@@ -771,7 +776,8 @@
     document.getElementById('dHash').textContent      = d.sha256;
 
     const confEl = document.getElementById('dConfidence');
-    confEl.innerHTML = `<span class="conf-chip ${d.confidence}">${d.confidence}</span>`;
+    const confClass = d.confidence === 'N/A' ? 'NA' : d.confidence;
+    confEl.innerHTML = `<span class="conf-chip ${confClass}">${d.confidence}</span>`;
 
     // Model bars
     setBar('lgbm',     d.lgbm_score);
@@ -820,13 +826,20 @@
         <span class="h-verdict ${d.verdict}">${d.verdict}</span>
         <span class="h-name">${escHtml(d.filename)}</span>
         <span class="h-platform">${d.platform}</span>
-        <span class="h-score">${Math.round(d.final_score * 100)}%</span>
+        <span class="h-score">${formatPct(d.final_score)}</span>
       </div>
     `).join('');
   }
 
   function escHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function formatPct(score) {
+    if (score === null || score === undefined || Number.isNaN(Number(score))) {
+      return 'N/A';
+    }
+    return Math.round(score * 100) + '%';
   }
 </script>
 </body>
