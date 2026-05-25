@@ -194,6 +194,11 @@
     border-radius: 2px;
   }
 
+  .badge.unsupported {
+    border-color: rgba(255,204,0,0.25);
+    color: var(--yellow);
+  }
+
   #fileInput { display: none; }
 
   /* ── Scanning animation ── */
@@ -537,8 +542,8 @@
   </div>
   <div class="header-stats">
     <div class="stat-pill">ENGINE <span>EMBER2024</span></div>
-    <div class="stat-pill">MODEL <span>LightGBM</span></div>
-    <div class="stat-pill">FILES <span>PE / ELF / APK / PDF</span></div>
+    <div class="stat-pill">MODELS <span>LightGBM + MalConv2</span></div>
+    <div class="stat-pill">TARGETS <span>Windows / Linux / Android / PDF</span></div>
   </div>
 </header>
 
@@ -561,12 +566,12 @@
     <div class="drop-title">DROP FILE TO SCAN</div>
     <div class="drop-sub">or click to browse — max 50MB</div>
     <div class="platform-badges">
-      <span class="badge">Windows .EXE</span>
-      <span class="badge">Android .APK</span>
-      <span class="badge">Linux .ELF</span>
-      <span class="badge">.NET Assembly</span>
-      <span class="badge">PDF Document</span>
-      <span class="badge">.DLL .SYS</span>
+      <span class="badge">Windows: .EXE .DLL .SYS</span>
+      <span class="badge">Windows: .NET</span>
+      <span class="badge">Linux: ELF .ELF</span>
+      <span class="badge">Android: .APK</span>
+      <span class="badge">Documents: .PDF</span>
+      <span class="badge unsupported">macOS: not yet (.APP .DMG Mach-O)</span>
     </div>
     <input type="file" id="fileInput">
   </div>
@@ -676,7 +681,7 @@
   const scanSteps = [
     'Identifying file type...',
     'Extracting EMBER v3 features...',
-    'Running LightGBM classifier...',
+    'Running LightGBM and MalConv2 where supported...',
     'Calibrating confidence...',
     'Finalising verdict...',
   ];
@@ -781,18 +786,22 @@
 
     // Model bars
     setBar('lgbm',     d.lgbm_score);
-    setBar('malconv',  d.malconv_score);
+    setBar(
+      'malconv',
+      d.malconv_score,
+      d.model_errors?.malconv?.includes('only used for Windows PE') ? 'PE only' : undefined
+    );
     setBar('ensemble', d.final_score);
 
     resultCard.classList.add('visible');
   }
 
-  function setBar(id, score) {
+  function setBar(id, score, unavailableLabel = 'unavailable') {
     if (score === null || score === undefined || Number.isNaN(Number(score))) {
       setTimeout(() => {
         document.getElementById(id + 'Bar').style.width = '0%';
       }, 100);
-      document.getElementById(id + 'Val').textContent = 'unavailable';
+      document.getElementById(id + 'Val').textContent = unavailableLabel;
       return;
     }
 

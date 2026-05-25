@@ -11,6 +11,8 @@ Full training pipeline:
 import os
 import numpy as np
 
+from ember_compat import get_thrember
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 
@@ -22,7 +24,7 @@ def download_dataset():
     print("[Trainer] Downloading EMBER2024 dataset...")
     print("[Trainer] This may take a while (3.2M files).")
     try:
-        import thrember
+        thrember = get_thrember()
         thrember.download_dataset(DATA_DIR)
         print("[Trainer] Dataset downloaded.")
     except ImportError:
@@ -46,8 +48,15 @@ def download_pretrained_models():
     except Exception as e:
         print(f"[Trainer] LightGBM download failed: {e}")
 
-    print("[Trainer] MalConv2 checkpoint download skipped.")
-    print("[Trainer] No public MalConv2 checkpoint is configured; scans will use LightGBM unless you train or add one.")
+    print("[Trainer] Downloading MalConv2 checkpoint...")
+    try:
+        from malconv2_model import MalConv2Detector
+        MalConv2Detector().ensure_available()
+        print("[Trainer] MalConv2 checkpoint ready.")
+    except ModuleNotFoundError as e:
+        print(f"[Trainer] {e.name} not installed. Run: pip install -r requirements.txt")
+    except Exception as e:
+        print(f"[Trainer] MalConv2 download failed: {e}")
 
 
 def train_lightgbm(file_type: str = 'all'):
@@ -55,8 +64,8 @@ def train_lightgbm(file_type: str = 'all'):
     Train LightGBM on vectorized EMBER2024 features.
     Requires dataset to be downloaded first.
     """
-    import thrember
     from lightgbm_model import LightGBMDetector
+    thrember = get_thrember()
 
     print(f"[Trainer] Loading EMBER2024 features for: {file_type}")
     X_train, y_train = thrember.read_vectorized_features(
@@ -106,9 +115,9 @@ def evaluate_challenge_set():
     These are evasive malware samples that initially fooled ~70 AV products.
     This is the hardest test.
     """
-    import thrember
     from scanner import Scanner
     from sklearn.metrics import roc_auc_score, average_precision_score
+    thrember = get_thrember()
 
     print("[Trainer] Loading EMBER2024 challenge set...")
     X_challenge, y_challenge = thrember.read_vectorized_features(

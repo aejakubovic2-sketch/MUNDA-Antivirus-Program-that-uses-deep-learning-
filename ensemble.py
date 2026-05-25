@@ -9,6 +9,7 @@ import json
 import numpy as np
 
 ENSEMBLE_CACHE = os.path.join(os.path.dirname(__file__), 'data', 'ensemble')
+MALCONV_SUPPORTED_TYPES = {'WIN32', 'WIN64', 'DOTNET'}
 
 
 class EnsembleDetector:
@@ -58,10 +59,16 @@ class EnsembleDetector:
         except Exception as e:
             errors['lgbm'] = str(e)
 
-        try:
-            scores['malconv'] = self.malconv.predict(filepath)
-        except Exception as e:
-            errors['malconv'] = str(e)
+        if file_type in MALCONV_SUPPORTED_TYPES:
+            try:
+                scores['malconv'] = self.malconv.predict(filepath)
+            except Exception as e:
+                errors['malconv'] = str(e)
+        else:
+            errors['malconv'] = (
+                'MalConv2 is only used for Windows PE files '
+                '(WIN32, WIN64, DOTNET).'
+            )
 
         if not scores:
             details = '; '.join(

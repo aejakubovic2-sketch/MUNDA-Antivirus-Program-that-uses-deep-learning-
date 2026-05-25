@@ -7,6 +7,9 @@ feature extraction, LightGBM, MalConv2, and ensemble.
 import os
 import time
 import hashlib
+import json
+import subprocess
+import sys
 from typing import Optional
 
 from file_identifier import identify_file, format_size
@@ -22,6 +25,35 @@ class _UnavailableDetector:
 
     def predict(self, *_args, **_kwargs) -> float:
         raise RuntimeError(self.reason)
+
+
+class _SubprocessMalConv2Detector:
+    def __init__(self, device: str = None):
+        self.device = device
+
+    def predict(self, filepath: str) -> float:
+        script = os.path.join(os.path.dirname(__file__), 'malconv2_model.py')
+        completed = subprocess.run(
+            [sys.executable, script, '--predict-json', filepath],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        if completed.returncode != 0:
+            message = completed.stderr.strip() or completed.stdout.strip()
+            raise RuntimeError(message or 'MalConv2 subprocess failed')
+
+        try:
+            payload = json.loads(completed.stdout.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError) as e:
+            raise RuntimeError(
+                f"MalConv2 returned invalid output: {completed.stdout.strip()}"
+            ) from e
+
+        if 'error' in payload:
+            raise RuntimeError(payload['error'])
+        return float(payload['score'])
 
 
 class Scanner:
@@ -153,17 +185,34 @@ class Scanner:
 
     @staticmethod
     def _init_malconv(device: str = None):
-        if os.environ.get('CROSSGUARD_ENABLE_MALCONV2') != '1':
+        enable_flag = (
+            os.environ.get('MUNDA_ENABLE_MALCONV2') or
+            os.environ.get('CROSSGUARD_ENABLE_MALCONV2')
+        )
+        if enable_flag == '0':
             return _UnavailableDetector(
-                "MalConv2 is disabled because no public pretrained checkpoint is configured."
+                "MalConv2 is disabled by environment configuration."
             )
 
-        try:
-            from malconv2_model import MalConv2Detector
-            return MalConv2Detector(device=device)
-        except Exception as e:
-            print(f"[Scanner] MalConv2 unavailable: {e}")
-            return _UnavailableDetector(str(e))
+        checkpoint = os.path.join(
+            os.path.dirname(__file__),
+            'data',
+            'malconv2',
+            'malconvGCT_nocat.checkpoint',
+        )
+        legacy_checkpoint = os.path.join(
+            os.path.dirname(__file__),
+            'data',
+            'malconv2',
+            'malconv2_pretrained.pt',
+        )
+        if enable_flag == '1' or os.path.isfile(checkpoint) or os.path.isfile(legacy_checkpoint):
+            return _SubprocessMalConv2Detector(device=device)
+
+        return _UnavailableDetector(
+            "MalConv2 checkpoint is not downloaded yet. Run "
+            "`python3.12 main.py --download-models` to add it."
+        )
 
     @staticmethod
     def _sha256(filepath: str) -> str:
