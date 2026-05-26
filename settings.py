@@ -88,6 +88,9 @@ PLATFORM_LABELS = {
     'ELF':     'Linux',
     'APK':     'Android',
     'PDF':     'Document',
+    'MACHO':   'macOS Mach-O',
+    'DMG':     'macOS disk image',
+    'MACAPP':  'macOS app bundle',
     'UNKNOWN': 'Unknown',
 }
 

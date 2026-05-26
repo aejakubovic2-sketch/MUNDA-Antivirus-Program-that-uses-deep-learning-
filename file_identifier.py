@@ -1,7 +1,7 @@
 """
 file_identifier.py
 Detects the type of a binary file: PE (Win32/Win64/.NET), ELF (Linux),
-APK (Android), PDF, or UNKNOWN.
+APK (Android), PDF, macOS Mach-O/DMG/App bundle, or UNKNOWN.
 Uses magic bytes — no libraries needed for basic detection.
 """
 
@@ -16,21 +16,50 @@ MAGIC = {
     b'%PDF':       'PDF',      # PDF document
 }
 
+MACHO_MAGICS = {
+    b'\xfe\xed\xfa\xce',
+    b'\xce\xfa\xed\xfe',
+    b'\xfe\xed\xfa\xcf',
+    b'\xcf\xfa\xed\xfe',
+    b'\xca\xfe\xba\xbe',
+    b'\xbe\xba\xfe\xca',
+    b'\xca\xfe\xba\xbf',
+}
+
 
 def identify_file(filepath: str) -> dict:
     """
     Returns a dict with:
-      - file_type: 'WIN32' | 'WIN64' | 'DOTNET' | 'ELF' | 'APK' | 'PDF' | 'UNKNOWN'
-      - platform:  'Windows' | 'Linux' | 'Android' | 'Document' | 'Unknown'
+      - file_type: 'WIN32' | 'WIN64' | 'DOTNET' | 'ELF' | 'APK' | 'PDF'
+                   | 'MACHO' | 'DMG' | 'MACAPP' | 'UNKNOWN'
+      - platform:  'Windows' | 'Linux' | 'Android' | 'Document' | 'macOS' | 'Unknown'
       - size_bytes: int
     """
-    if not os.path.isfile(filepath):
+    if not os.path.exists(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
 
+    if os.path.isdir(filepath):
+        if filepath.lower().endswith('.app'):
+            return {
+                'file_type': 'MACAPP',
+                'platform': 'macOS',
+                'size_bytes': _directory_size(filepath),
+            }
+        raise IsADirectoryError(f"Directory is not a supported file target: {filepath}")
+
     size = os.path.getsize(filepath)
+    suffix = os.path.splitext(filepath)[1].lower()
 
     with open(filepath, 'rb') as f:
         header = f.read(16)
+
+    # --- macOS DMG disk image ---
+    if suffix == '.dmg' or _has_udif_trailer(filepath):
+        return {'file_type': 'DMG', 'platform': 'macOS', 'size_bytes': size}
+
+    # --- macOS Mach-O executable/library ---
+    if header[:4] in MACHO_MAGICS:
+        return {'file_type': 'MACHO', 'platform': 'macOS', 'size_bytes': size}
 
     # --- PDF ---
     if header[:4] == b'%PDF':
@@ -56,6 +85,30 @@ def identify_file(filepath: str) -> dict:
         return {'file_type': file_type, 'platform': platform, 'size_bytes': size}
 
     return {'file_type': 'UNKNOWN', 'platform': 'Unknown', 'size_bytes': size}
+
+
+def _has_udif_trailer(filepath: str) -> bool:
+    """DMG/UDIF images normally end with a 512-byte trailer starting with 'koly'."""
+    try:
+        if os.path.getsize(filepath) < 512:
+            return False
+        with open(filepath, 'rb') as f:
+            f.seek(-512, os.SEEK_END)
+            return f.read(4) == b'koly'
+    except OSError:
+        return False
+
+
+def _directory_size(dirpath: str) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(dirpath):
+        for filename in files:
+            path = os.path.join(root, filename)
+            try:
+                total += os.path.getsize(path)
+            except OSError:
+                pass
+    return total
 
 
 def _classify_pe(filepath: str):

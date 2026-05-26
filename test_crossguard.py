@@ -64,6 +64,21 @@ def _make_apk_file(path: str) -> str:
     return path
 
 
+def _make_macho_file(path: str) -> str:
+    """Create a minimal Mach-O-like file for identification tests."""
+    with open(path, 'wb') as f:
+        f.write(b'\xcf\xfa\xed\xfe' + b'\x00' * 64)
+    return path
+
+
+def _make_dmg_file(path: str) -> str:
+    """Create a minimal DMG-like file with a UDIF trailer marker."""
+    with open(path, 'wb') as f:
+        f.write(b'\x00' * 1024)
+        f.write(b'koly' + b'\x00' * 508)
+    return path
+
+
 # ── Test: File Identifier ────────────────────────────────
 
 class TestFileIdentifier(unittest.TestCase):
@@ -101,6 +116,25 @@ class TestFileIdentifier(unittest.TestCase):
         result = self.identify(path)
         self.assertEqual(result['file_type'], 'APK')
         self.assertEqual(result['platform'], 'Android')
+
+    def test_macho(self):
+        path = _make_macho_file(os.path.join(self.tmpdir, 'test_macho'))
+        result = self.identify(path)
+        self.assertEqual(result['file_type'], 'MACHO')
+        self.assertEqual(result['platform'], 'macOS')
+
+    def test_dmg(self):
+        path = _make_dmg_file(os.path.join(self.tmpdir, 'test.dmg'))
+        result = self.identify(path)
+        self.assertEqual(result['file_type'], 'DMG')
+        self.assertEqual(result['platform'], 'macOS')
+
+    def test_mac_app_bundle(self):
+        path = os.path.join(self.tmpdir, 'Example.app')
+        os.makedirs(path)
+        result = self.identify(path)
+        self.assertEqual(result['file_type'], 'MACAPP')
+        self.assertEqual(result['platform'], 'macOS')
 
     def test_unknown(self):
         path = os.path.join(self.tmpdir, 'test.bin')

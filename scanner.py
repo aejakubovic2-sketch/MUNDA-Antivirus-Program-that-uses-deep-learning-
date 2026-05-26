@@ -18,6 +18,8 @@ from lightgbm_model import LightGBMDetector
 from ensemble import EnsembleDetector
 from settings import SUPPORTED_TYPES
 
+MACOS_TYPES = {'MACHO', 'DMG', 'MACAPP'}
+
 
 class _UnavailableDetector:
     def __init__(self, reason: str):
@@ -87,7 +89,7 @@ class Scanner:
         Returns a result dict with all detection details.
         Raises FileNotFoundError if file doesn't exist.
         """
-        if not os.path.isfile(filepath):
+        if not os.path.exists(filepath):
             raise FileNotFoundError(f"File not found: {filepath}")
 
         start_time = time.time()
@@ -99,7 +101,7 @@ class Scanner:
         size       = file_info['size_bytes']
 
         # Step 2: Compute SHA256 hash
-        sha256 = self._sha256(filepath)
+        sha256 = self._sha256(filepath) if os.path.isfile(filepath) else 'N/A'
 
         if file_type not in SUPPORTED_TYPES:
             elapsed = round(time.time() - start_time, 3)
@@ -241,10 +243,7 @@ class Scanner:
             'is_malware':    False,
             'method':        'none',
             'model_errors': {
-                'scanner': (
-                    'Unsupported file type. MUNDA currently scans PE, ELF, APK, '
-                    'PDF, and .NET files with the LightGBM model.'
-                )
+                'scanner': _unsupported_message(file_type)
             },
             'scan_time_s':   elapsed,
         }
@@ -266,3 +265,16 @@ def _format_score(score) -> str:
     if score is None:
         return 'N/A'
     return f"{score:.3f}"
+
+
+def _unsupported_message(file_type: str) -> str:
+    if file_type in MACOS_TYPES:
+        return (
+            'macOS file type recognized, but MUNDA does not include a trained '
+            'macOS malware model yet. Current scoring models support Windows PE, '
+            'Linux ELF, Android APK, and PDF targets.'
+        )
+    return (
+        'Unsupported file type. MUNDA currently scans PE, ELF, APK, PDF, '
+        'and .NET files with the LightGBM model.'
+    )
