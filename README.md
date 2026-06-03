@@ -45,16 +45,16 @@ MUNDA/
 ## Quick Start
 ```bash
 # 1. Install dependencies (Python 3.12 recommended)
-python3.12 -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # 2. Download pretrained LightGBM models and MalConv2 checkpoint
-python3.12 main.py --download-models
+python main.py --download-models
 
 # 3. Scan a file
-python3.12 main.py --scan /path/to/suspicious.exe
+python main.py --scan /path/to/suspicious.exe
 
 # 4. Launch web dashboard
-python3.12 main.py --dashboard --port 5050
+python main.py --dashboard --port 5050
 ```
 
 Then open:
