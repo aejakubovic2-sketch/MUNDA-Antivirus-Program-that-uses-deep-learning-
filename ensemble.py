@@ -60,20 +60,16 @@ class EnsembleDetector:
             errors['lgbm'] = str(e)
 
         if file_type in MALCONV_SUPPORTED_TYPES:
-            if self.malconv is not None:
-                try:
-                    scores['malconv'] = self.malconv.predict(filepath)
-                except Exception as e:
-                    errors['malconv'] = (
-                        f"MalConv2 unavailable, using LightGBM only. Error: {e}"
-                    )
-                else:
-                    errors['malconv'] = "MalConv2 detector is not initialized. Using LightGBM only."
-                else:
-                    errors['malconv'] = (
-                        'MalConv2 is only used for Windows PE files '
-                        '(WIN32, WIN64, DOTNET).'
-                    )
+            try:
+                scores['malconv'] = self.malconv.predict(filepath)
+            except Exception as e:
+                errors['malconv'] = str(e)
+        else:
+            errors['malconv'] = (
+                'MalConv2 is only used for Windows PE files '
+                '(WIN32, WIN64, DOTNET).'
+            )
+
         if not scores:
             details = '; '.join(
                 f"{model}: {error}" for model, error in errors.items()
@@ -135,10 +131,7 @@ class EnsembleDetector:
         return self.lgbm.predict(feature_vector, file_type)
 
     def _get_malconv_score(self, filepath: str) -> float:
-        if self.malconv is None:
-        raise RuntimeError("MalConv2 detector is not initialized.")
-    return self.malconv.predict(filepath)
-        
+        return self.malconv.predict(filepath)
 
     # ── Meta-learner training ────────────────────────────
 

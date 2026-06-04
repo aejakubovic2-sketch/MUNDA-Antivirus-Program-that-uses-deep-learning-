@@ -200,38 +200,13 @@ def _fill_pe_features(vec, raw, filepath, offset):
     # ── DOS Header (30 dims) ─────────────────────────────
     dh = pe.DOS_HEADER
     dos_fields = [
-    getattr(dh, "e_magic", 0),
-    getattr(dh, "e_cblp", 0),
-    getattr(dh, "e_cp", 0),
-    getattr(dh, "e_crlc", 0),
-    getattr(dh, "e_cparhdr", 0),
-    getattr(dh, "e_minalloc", 0),
-    getattr(dh, "e_maxalloc", 0),
-    getattr(dh, "e_ss", 0),
-    getattr(dh, "e_sp", 0),
-    getattr(dh, "e_csum", 0),
-    getattr(dh, "e_ip", 0),
-    getattr(dh, "e_cs", 0),
-    getattr(dh, "e_lfarlc", 0),
-    getattr(dh, "e_ovno", 0),
-    getattr(dh, "e_res_0", 0),
-    getattr(dh, "e_res_1", 0),
-    getattr(dh, "e_res_2", 0),
-    getattr(dh, "e_res_3", 0),
-    getattr(dh, "e_oemid", 0),
-    getattr(dh, "e_oeminfo", 0),
-    getattr(dh, "e_res2_0", 0),
-    getattr(dh, "e_res2_1", 0),
-    getattr(dh, "e_res2_2", 0),
-    getattr(dh, "e_res2_3", 0),
-    getattr(dh, "e_res2_4", 0),
-    getattr(dh, "e_res2_5", 0),
-    getattr(dh, "e_res2_6", 0),
-    getattr(dh, "e_res2_7", 0),
-    getattr(dh, "e_res2_8", 0),
-    getattr(dh, "e_lfanew", 0),
+        dh.e_magic, dh.e_cblp, dh.e_cp, dh.e_crlc, dh.e_cparhdr,
+        dh.e_minalloc, dh.e_maxalloc, dh.e_ss, dh.e_sp, dh.e_csum,
+        dh.e_ip, dh.e_cs, dh.e_lfarlc, dh.e_ovno, dh.e_res_0,
+        dh.e_res_1, dh.e_res_2, dh.e_res_3, dh.e_oemid, dh.e_oeminfo,
+        dh.e_res2_0, dh.e_res2_1, dh.e_res2_2, dh.e_res2_3, dh.e_res2_4,
+        dh.e_res2_5, dh.e_res2_6, dh.e_res2_7, dh.e_res2_8, dh.e_lfanew,
     ]
-
     for i, val in enumerate(dos_fields[:30]):
         vec[idx + i] = _normalise(val)
     idx += 30
