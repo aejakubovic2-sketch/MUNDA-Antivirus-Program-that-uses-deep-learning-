@@ -34,24 +34,32 @@ def compute_metrics(y_true: np.ndarray, y_scores: np.ndarray) -> dict:
     Returns:
         dict of metrics
     """
-    from sklearn.metrics import (
-        roc_auc_score, average_precision_score,
-        roc_curve, precision_recall_curve,
-        confusion_matrix, classification_report,
-    )
+    y_true = np.asarray(y_true).astype(int)
+    y_scores = np.asarray(y_scores).astype(float)
 
     y_pred = (y_scores >= THRESHOLD_MALWARE).astype(int)
 
-    roc_auc = roc_auc_score(y_true, y_scores)
-    pr_auc  = average_precision_score(y_true, y_scores)
+    try:
+        from sklearn.metrics import (
+            roc_auc_score, average_precision_score, roc_curve,
+        )
+        roc_auc = roc_auc_score(y_true, y_scores)
+        pr_auc = average_precision_score(y_true, y_scores)
+        fpr_arr, tpr_arr, _thresholds = roc_curve(y_true, y_scores)
+    except ModuleNotFoundError:
+        roc_auc = _roc_auc_numpy(y_true, y_scores)
+        pr_auc = _average_precision_numpy(y_true, y_scores)
+        fpr_arr, tpr_arr = _roc_curve_numpy(y_true, y_scores)
 
     # TPR at fixed FPR thresholds (industry standard)
-    fpr_arr, tpr_arr, thresholds = roc_curve(y_true, y_scores)
     tpr_at_1pct_fpr  = _tpr_at_fpr(fpr_arr, tpr_arr, 0.01)
     tpr_at_01pct_fpr = _tpr_at_fpr(fpr_arr, tpr_arr, 0.001)
 
     # Confusion matrix
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+    tn = int(np.sum((y_true == 0) & (y_pred == 0)))
+    fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+    fn = int(np.sum((y_true == 1) & (y_pred == 0)))
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -85,6 +93,43 @@ def _tpr_at_fpr(fpr_arr, tpr_arr, target_fpr: float) -> float:
     if idx >= len(tpr_arr):
         return float(tpr_arr[-1])
     return float(tpr_arr[idx])
+
+
+def _roc_auc_numpy(y_true: np.ndarray, y_scores: np.ndarray) -> float:
+    pos = y_scores[y_true == 1]
+    neg = y_scores[y_true == 0]
+    if len(pos) == 0 or len(neg) == 0:
+        return 0.0
+
+    comparisons = pos[:, None] - neg[None, :]
+    wins = np.sum(comparisons > 0)
+    ties = np.sum(comparisons == 0)
+    return float((wins + 0.5 * ties) / comparisons.size)
+
+
+def _average_precision_numpy(y_true: np.ndarray, y_scores: np.ndarray) -> float:
+    positives = np.sum(y_true == 1)
+    if positives == 0:
+        return 0.0
+
+    order = np.argsort(-y_scores, kind='mergesort')
+    sorted_true = y_true[order]
+    tp = np.cumsum(sorted_true == 1)
+    precision = tp / (np.arange(len(sorted_true)) + 1)
+    return float(np.sum(precision[sorted_true == 1]) / positives)
+
+
+def _roc_curve_numpy(y_true: np.ndarray, y_scores: np.ndarray):
+    positives = np.sum(y_true == 1)
+    negatives = np.sum(y_true == 0)
+    if positives == 0 or negatives == 0:
+        return np.array([0.0, 1.0]), np.array([0.0, 0.0])
+
+    order = np.argsort(-y_scores, kind='mergesort')
+    sorted_true = y_true[order]
+    tp = np.r_[0, np.cumsum(sorted_true == 1)]
+    fp = np.r_[0, np.cumsum(sorted_true == 0)]
+    return fp / negatives, tp / positives
 
 
 # ── Per-platform evaluation ───────────────────────────────

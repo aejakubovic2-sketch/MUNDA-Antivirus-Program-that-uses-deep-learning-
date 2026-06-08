@@ -10,6 +10,7 @@ import sys
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -252,6 +253,56 @@ class TestEnsembleLogic(unittest.TestCase):
     def test_confidence_low(self):
         conf = self._make_mock_ensemble()._confidence(0.1, 0.9, 0.5)
         self.assertEqual(conf, 'LOW')
+
+
+# â”€â”€ Test: MalConv2 wiring (no checkpoint needed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class TestMalConv2Wiring(unittest.TestCase):
+
+    def test_subprocess_passes_device_and_env(self):
+        from subprocess import CompletedProcess
+        from scanner import _SubprocessMalConv2Detector
+
+        completed = CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='{"score": 0.42}\n',
+            stderr='',
+        )
+        with patch('scanner.subprocess.run', return_value=completed) as run:
+            detector = _SubprocessMalConv2Detector(device='cuda', timeout=7)
+            self.assertAlmostEqual(detector.predict('sample.exe'), 0.42)
+
+        args, kwargs = run.call_args
+        command = args[0]
+        self.assertIn('--device', command)
+        self.assertIn('cuda', command)
+        self.assertEqual(kwargs['timeout'], 7)
+        self.assertEqual(kwargs['env']['MUNDA_MALCONV2_DEVICE'], 'cuda')
+
+    def test_subprocess_uses_structured_json_error(self):
+        from subprocess import CompletedProcess
+        from scanner import _SubprocessMalConv2Detector
+
+        completed = CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout='{"error": "checkpoint missing"}\n',
+            stderr='traceback that should not leak',
+        )
+        with patch('scanner.subprocess.run', return_value=completed):
+            detector = _SubprocessMalConv2Detector(timeout=7)
+            with self.assertRaisesRegex(RuntimeError, 'checkpoint missing'):
+                detector.predict('sample.exe')
+
+    def test_init_malconv_reports_missing_torch(self):
+        from scanner import Scanner
+
+        with patch('scanner.importlib.util.find_spec', return_value=None):
+            detector = Scanner._init_malconv()
+
+        with self.assertRaisesRegex(RuntimeError, 'PyTorch'):
+            detector.predict('sample.exe')
 
 
 # ── Test: Reporter ───────────────────────────────────────

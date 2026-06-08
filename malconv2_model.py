@@ -13,9 +13,31 @@ import argparse
 from urllib.request import urlretrieve
 
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    TORCH_IMPORT_ERROR = None
+except ModuleNotFoundError as exc:
+    if exc.name != 'torch':
+        raise
+
+    TORCH_IMPORT_ERROR = exc
+
+    class _MissingTorch:
+        Tensor = object
+
+        class cuda:
+            @staticmethod
+            def is_available():
+                return False
+
+    class _MissingNN:
+        Module = object
+
+    torch = _MissingTorch()
+    nn = _MissingNN()
+    F = None
 
 MODEL_CACHE = os.path.join(os.path.dirname(__file__), 'data', 'malconv2')
 MODEL_FILE = 'malconvGCT_nocat.checkpoint'
@@ -27,6 +49,15 @@ MODEL_URL = (
 
 MAX_FILE_BYTES = int(os.environ.get('MUNDA_MALCONV2_MAX_BYTES', 2_000_000))
 PAD_VALUE = 0
+
+
+def _require_torch():
+    if TORCH_IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "MalConv2 requires PyTorch, but it is not installed. "
+            "Install project dependencies with `python -m pip install -r "
+            "requirements.txt` and then run `python main.py --download-models`."
+        ) from TORCH_IMPORT_ERROR
 
 
 # ── Official MalConv2 Architecture ──────────────────────────────────────────
@@ -245,8 +276,9 @@ class MalConv2Detector:
     High-level wrapper around the official MalConv2 checkpoint.
     """
 
-    def __init__(self, device: str = None):
-        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+    def __init__(self, device: str = None, auto_download: bool = True):
+        self.device = self._resolve_device(device)
+        self.auto_download = auto_download
         self._model = None
 
     def predict(self, filepath: str) -> float:
@@ -266,9 +298,16 @@ class MalConv2Detector:
         return float(np.clip(score, 0.0, 1.0))
 
     def _load_model(self) -> MalConvGCT:
+        _require_torch()
         if self._model is None:
             model_path = self._model_path()
             if not os.path.isfile(model_path):
+                if not self.auto_download:
+                    raise FileNotFoundError(
+                        "MalConv2 checkpoint is not downloaded yet. Run "
+                        "`python main.py --download-models` or place "
+                        f"{MODEL_FILE} at {model_path}."
+                    )
                 self._download_model(model_path)
             self._model = self._load_weights(model_path)
             self._model.eval()
@@ -276,6 +315,12 @@ class MalConv2Detector:
 
     def _load_weights(self, path: str) -> MalConvGCT:
         checkpoint = self._safe_torch_load(path)
+        if not isinstance(checkpoint, dict):
+            raise RuntimeError(
+                "MalConv2 checkpoint has an unsupported format. Expected a "
+                "state_dict or a dict containing `model_state_dict`."
+            )
+
         if 'model_state_dict' in checkpoint:
             state = checkpoint['model_state_dict']
             model = MalConvGCT(
@@ -284,11 +329,22 @@ class MalConv2Detector:
                 stride=checkpoint.get('stride', 64),
                 embd_size=checkpoint.get('embd_dim', 8),
             )
+        elif 'state_dict' in checkpoint:
+            state = checkpoint['state_dict']
+            model = MalConvGCT()
         else:
             state = checkpoint
             model = MalConvGCT()
 
-        missing, unexpected = model.load_state_dict(state, strict=False)
+        if not isinstance(state, dict):
+            raise RuntimeError(
+                "MalConv2 checkpoint state is invalid. Expected a PyTorch "
+                "state_dict mapping parameter names to tensors."
+            )
+
+        incompatible = model.load_state_dict(state, strict=False)
+        missing = list(getattr(incompatible, 'missing_keys', incompatible[0]))
+        unexpected = list(getattr(incompatible, 'unexpected_keys', incompatible[1]))
         if missing:
             raise RuntimeError(
                 "MalConv2 checkpoint is missing required weights: "
@@ -307,6 +363,13 @@ class MalConv2Detector:
             return torch.load(path, map_location=self.device, weights_only=True)
         except TypeError:
             return torch.load(path, map_location=self.device)
+        except Exception as e:
+            # Some older public checkpoints include metadata that PyTorch's
+            # weights-only unpickler may reject. The checkpoint path is explicit
+            # and user-controlled, so fall back to normal loading for that case.
+            if 'weights_only' in str(e) or 'Weights only load failed' in str(e):
+                return torch.load(path, map_location=self.device, weights_only=False)
+            raise
 
     def _file_to_tensor(self, filepath: str) -> torch.Tensor:
         with open(filepath, 'rb') as f:
@@ -324,8 +387,15 @@ class MalConv2Detector:
         try:
             print("[MalConv2] Downloading official checkpoint from GitHub...")
             urlretrieve(MODEL_URL, dest_path)
+            if not os.path.isfile(dest_path) or os.path.getsize(dest_path) == 0:
+                raise RuntimeError("downloaded checkpoint is empty")
             print(f"[MalConv2] Downloaded -> {dest_path}")
         except Exception as e:
+            try:
+                if os.path.isfile(dest_path):
+                    os.remove(dest_path)
+            except OSError:
+                pass
             raise RuntimeError(
                 "Could not download the official MalConv2 checkpoint.\n"
                 "Please check your network connection or manually download:\n"
@@ -343,10 +413,25 @@ class MalConv2Detector:
         return legacy_path
 
     def is_available(self) -> bool:
-        return os.path.isfile(self._model_path())
+        return TORCH_IMPORT_ERROR is None and os.path.isfile(self._model_path())
 
     def ensure_available(self) -> None:
         self._load_model()
+
+    @staticmethod
+    def _resolve_device(device: str = None) -> str:
+        device = device or os.environ.get('MUNDA_MALCONV2_DEVICE')
+        if device:
+            normalized = device.lower()
+            if normalized.startswith('cuda'):
+                _require_torch()
+                if not torch.cuda.is_available():
+                    raise RuntimeError(
+                        "CUDA was requested for MalConv2, but PyTorch does "
+                        "not report an available CUDA device."
+                    )
+            return device
+        return 'cuda' if TORCH_IMPORT_ERROR is None and torch.cuda.is_available() else 'cpu'
 
     # ── Training ─────────────────────────────────────────
 
@@ -425,15 +510,30 @@ class MalConv2Detector:
 def _main():
     parser = argparse.ArgumentParser(description='Run MalConv2 on one file')
     parser.add_argument('--predict-json', metavar='FILE')
+    parser.add_argument('--device', default=None, help='Torch device, e.g. cpu or cuda')
+    parser.add_argument(
+        '--ensure-available',
+        action='store_true',
+        help='Download/load the checkpoint and exit',
+    )
     args = parser.parse_args()
 
-    if args.predict_json:
-        try:
-            score = MalConv2Detector(device='cpu').predict(args.predict_json)
+    try:
+        detector = MalConv2Detector(device=args.device)
+        if args.ensure_available:
+            detector.ensure_available()
+            print(json.dumps({'available': True, 'device': detector.device}))
+            return
+
+        if args.predict_json:
+            score = detector.predict(args.predict_json)
             print(json.dumps({'score': score}))
-        except Exception as e:
-            print(json.dumps({'error': str(e)}))
-            sys.exit(1)
+            return
+
+        parser.print_help()
+    except Exception as e:
+        print(json.dumps({'error': str(e)}))
+        sys.exit(1)
 
 
 if __name__ == '__main__':

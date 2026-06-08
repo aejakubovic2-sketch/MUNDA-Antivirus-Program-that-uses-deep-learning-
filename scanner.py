@@ -10,6 +10,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import importlib.util
 from typing import Optional
 
 from file_identifier import identify_file, format_size
@@ -30,32 +31,55 @@ class _UnavailableDetector:
 
 
 class _SubprocessMalConv2Detector:
-    def __init__(self, device: str = None):
+    def __init__(self, device: str = None, timeout: int = 120):
         self.device = device
+        self.timeout = timeout
 
     def predict(self, filepath: str) -> float:
         script = os.path.join(os.path.dirname(__file__), 'malconv2_model.py')
-        completed = subprocess.run(
-            [sys.executable, script, '--predict-json', filepath],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
+        command = [sys.executable, script, '--predict-json', filepath]
+        env = os.environ.copy()
+        if self.device:
+            command.extend(['--device', self.device])
+            env['MUNDA_MALCONV2_DEVICE'] = self.device
+
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(
+                f"MalConv2 timed out after {self.timeout}s while scanning "
+                f"{os.path.basename(filepath)}."
+            ) from e
+
+        payload = self._parse_json_payload(completed.stdout)
         if completed.returncode != 0:
+            if payload and 'error' in payload:
+                raise RuntimeError(payload['error'])
             message = completed.stderr.strip() or completed.stdout.strip()
             raise RuntimeError(message or 'MalConv2 subprocess failed')
 
-        try:
-            payload = json.loads(completed.stdout.strip().splitlines()[-1])
-        except (IndexError, json.JSONDecodeError) as e:
+        if payload is None:
             raise RuntimeError(
                 f"MalConv2 returned invalid output: {completed.stdout.strip()}"
-            ) from e
+            )
 
         if 'error' in payload:
             raise RuntimeError(payload['error'])
         return float(payload['score'])
+
+    @staticmethod
+    def _parse_json_payload(stdout: str):
+        try:
+            return json.loads(stdout.strip().splitlines()[-1])
+        except (IndexError, json.JSONDecodeError):
+            return None
 
 
 class Scanner:
@@ -196,6 +220,12 @@ class Scanner:
                 "MalConv2 is disabled by environment configuration."
             )
 
+        if importlib.util.find_spec('torch') is None:
+            return _UnavailableDetector(
+                "MalConv2 requires PyTorch, but `torch` is not installed. "
+                "Run `python -m pip install -r requirements.txt`."
+            )
+
         checkpoint = os.path.join(
             os.path.dirname(__file__),
             'data',
@@ -209,7 +239,8 @@ class Scanner:
             'malconv2_pretrained.pt',
         )
         if enable_flag == '1' or os.path.isfile(checkpoint) or os.path.isfile(legacy_checkpoint):
-            return _SubprocessMalConv2Detector(device=device)
+            timeout = int(os.environ.get('MUNDA_MALCONV2_TIMEOUT', '120'))
+            return _SubprocessMalConv2Detector(device=device, timeout=timeout)
 
         return _UnavailableDetector(
             "MalConv2 checkpoint is not downloaded yet. Run "
