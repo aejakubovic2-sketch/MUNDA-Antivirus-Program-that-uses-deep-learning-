@@ -2,7 +2,8 @@
 ## Malware detection dashboard using EMBER2024 features, LightGBM, and MalConv2
 
 ---
-
+For Personal Use the "Main" branch is the one that should be used to the fact that the other branches were for experimental purposes. 
+---
 ## Overview
 MUNDA is a cross-platform malware detection system that uses:
 - **EMBER2024 dataset** — 3.2M files across Windows, Linux, Android, PDF
