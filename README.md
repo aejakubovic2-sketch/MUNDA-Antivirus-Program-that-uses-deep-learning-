@@ -151,3 +151,9 @@ This project uses pretrained EMBER2024 LightGBM models and the public MalConv2 c
 
 - EMBER2024: https://github.com/FutureComputing4AI/EMBER2024
 - MalConv2: https://github.com/FutureComputing4AI/MalConv2
+
+
+## Poster
+<img width="1491" height="1055" alt="poster1" src="https://github.com/user-attachments/assets/8a90f8b7-7f8c-49c3-83aa-74e16492e8e2" />
+
+
