@@ -60,15 +60,17 @@ class EnsembleDetector:
             errors['lgbm'] = str(e)
 
         if file_type in MALCONV_SUPPORTED_TYPES:
-            try: scores['malconv'] = self.malconv.predict(filepath)
-                except Exception as e:
-                    errors['malconv'] = (
-                        f"MalConv2 unavailable, using LightGBM only. Error: {e}"
+            try: 
+                scores['malconv'] = self.malconv.predict(filepath)
+            except Exception as e:
+                errors['malconv'] = (
+                    f"MalConv2 unavailable, using LightGBM only. Error: {e}"
+                )
         else:
             errors['malconv'] = (
-                        'MalConv2 is only used for Windows PE files '
-                        '(WIN32, WIN64, DOTNET).
-                        )
+                'MalConv2 is only used for Windows PE files '
+                '(WIN32, WIN64, DOTNET).
+                )
 
         if not scores:
             details = '; '.join(
