@@ -1,150 +1,296 @@
-# MUNDA — Cross-Platform Malware Detector
-## Malware detection dashboard using EMBER2024 features, LightGBM, and MalConv2
+# MUNDA 🛡️
+
+### Cross-Platform Malware Detection System
+
+MUNDA is a malware detection platform that combines traditional machine learning and deep learning models to analyze files from multiple operating systems and document formats.
+
+Built using **EMBER2024**, **LightGBM**, **MalConv2**, **Python**, and **Flask**, MUNDA provides both a command-line interface and a web-based dashboard for malware analysis.
+
+> **Note:** The `main` branch contains the stable version of the project. Other branches were used for experimentation and development purposes.
 
 ---
-For Personal Use the "Main" branch is the one that should be used to the fact that the other branches were for experimental purposes. 
+
+## Features
+
+* 🔍 Malware detection across multiple platforms
+* 🤖 Ensemble-based detection using LightGBM and MalConv2
+* 📊 Browser-based dashboard built with Flask
+* ⚡ Fast static analysis using EMBER2024 features
+* 📁 Support for Windows, Linux, Android, and PDF files
+* 🚫 Unsupported formats are clearly identified instead of receiving misleading threat scores
+* 🖥️ Cross-platform dashboard (Windows, Linux, macOS)
+
 ---
-## Overview
-MUNDA is a cross-platform malware detection system that uses:
-- **EMBER2024 dataset** — 3.2M files across Windows, Linux, Android, PDF
-- **LightGBM** — Fast feature-based detection with pretrained EMBER2024 models
-- **MalConv2** — Raw-byte deep learning model for Windows PE files
-- **Flask dashboard** — Local browser interface for uploading and scanning files
 
-Unsupported file types are reported as `UNSUPPORTED` with an `N/A` score instead of receiving a misleading threat percentage.
+## Detection Architecture
 
-## Supported Platforms
-This table describes the files MUNDA can scan, not the operating system running MUNDA. The dashboard can run on macOS, and macOS file types can be recognized, but they are not scored because MUNDA does not include a trained macOS malware model yet.
+MUNDA uses a hybrid detection pipeline:
 
-| Target platform | Scan support |
-|---|---|
-| Windows 32/64-bit | Supported: `.exe`, `.dll`, `.sys` |
-| Windows .NET apps | Supported: .NET assemblies |
-| Android | Supported: `.apk` |
-| Linux | Supported: ELF binaries, `.elf` |
-| Documents | Supported: `.pdf` |
-| macOS | Recognized but not scored yet: `.app`, `.dmg`, Mach-O binaries |
+### LightGBM (EMBER2024)
+
+Feature-based malware detection using pretrained models trained on the EMBER2024 dataset.
+
+### MalConv2
+
+Deep learning model that analyzes raw bytes directly from executable files.
+
+### Ensemble Scoring
+
+When multiple models are available, MUNDA combines predictions into a single threat score and confidence rating.
+
+---
+
+## Supported File Types
+
+| Target Platform   | Status             | File Types                      |
+| ----------------- | ------------------ | ------------------------------- |
+| Windows           | ✅ Supported        | `.exe`, `.dll`, `.sys`          |
+| .NET Applications | ✅ Supported        | .NET Assemblies                 |
+| Android           | ✅ Supported        | `.apk`                          |
+| Linux             | ✅ Supported        | ELF binaries, `.elf`            |
+| Documents         | ✅ Supported        | `.pdf`                          |
+| macOS             | ⚠️ Recognized Only | `.app`, `.dmg`, Mach-O binaries |
+
+> macOS files can be identified by MUNDA but are currently not scored because no macOS malware model is included.
+
+---
 
 ## Project Structure
-```
+
+```text
 MUNDA/
 ├── app.py                     # Flask backend
 ├── index.html                 # Dashboard frontend
 ├── main.py                    # CLI entry point
 ├── scanner.py                 # Main scanning engine
-├── feature_extractor.py       # EMBER feature extraction
-├── file_identifier.py         # Detect file type (PE/ELF/APK/PDF)
-├── ember_compat.py            # EMBER2024 import compatibility helpers
-├── lightgbm_model.py          # LightGBM model loader/predictor
-├── malconv2_model.py          # MalConv2 checkpoint loader/predictor
-├── ensemble.py                # Combines available model scores
-├── data/                      # Downloaded models/dataset (not committed)
+├── feature_extractor.py       # EMBER2024 feature extraction
+├── file_identifier.py         # File type detection
+├── ember_compat.py            # EMBER2024 compatibility helpers
+├── lightgbm_model.py          # LightGBM model loader
+├── malconv2_model.py          # MalConv2 model loader
+├── ensemble.py                # Score aggregation
+├── data/                      # Downloaded models and datasets
 ├── requirements.txt
 └── README.md
 ```
 
-## Quick Start
+---
+
+## Dataset
+
+MUNDA utilizes the **EMBER2024** malware dataset containing approximately:
+
+* 3.2 million samples
+* Windows PE files
+* Linux ELF binaries
+* Android APKs
+* PDF documents
+
+---
+
+## Installation
+
+### Requirements
+
+* Python 3.12 (recommended)
+* pip
+* Git
+
+### Clone Repository
+
 ```bash
-# 1. Install dependencies (Python 3.12 recommended)
+git clone https://github.com/your-username/MUNDA.git
+cd MUNDA
+```
+
+### Install Dependencies
+
+```bash
 python3.12 -m pip install -r requirements.txt
+```
 
-# 2. Download pretrained LightGBM models and MalConv2 checkpoint
+### Download Pretrained Models
+
+```bash
 python3.12 main.py --download-models
+```
 
-# 3. Scan a file
-python3.12 main.py --scan /path/to/suspicious.exe
+---
 
-# 4. Launch web dashboard
+## Quick Start
+
+### Scan a File
+
+```bash
+python3.12 main.py --scan /path/to/file.exe
+```
+
+### Launch the Dashboard
+
+```bash
 python3.12 main.py --dashboard --port 5050
 ```
 
-Then open:
+Open your browser and navigate to:
 
 ```text
 http://localhost:5050
 ```
 
-On macOS, if LightGBM cannot find `libomp.dylib`, install OpenMP with:
+---
+
+## Dashboard
+
+The Flask dashboard allows users to:
+
+* Upload files
+* View threat scores
+* Check confidence levels
+* Identify file types
+* Review scan verdicts
+
+---
+
+## Threat Scoring
+
+| Score   | Verdict       |
+| ------- | ------------- |
+| 0–39%   | ✅ Clean       |
+| 40–74%  | ⚠️ Suspicious |
+| 75–100% | 🚨 Malware    |
+
+Confidence is calculated from the decisiveness of the active detection models.
+
+---
+
+## Model Usage
+
+| File Type  | LightGBM | MalConv2 |
+| ---------- | -------- | -------- |
+| Windows PE | ✅        | ✅        |
+| .NET       | ✅        | ✅        |
+| APK        | ✅        | ❌        |
+| ELF        | ✅        | ❌        |
+| PDF        | ✅        | ❌        |
+
+MalConv2 is only used for Windows PE-style binaries because the publicly available checkpoint was trained specifically on PE files.
+
+---
+
+## Training
+
+### Download Dataset
 
 ```bash
-brew install libomp
+python3.12 main.py --download-dataset
 ```
 
-## Troubleshooting
-These are common setup issues and the commands that usually fix them.
+### Train Models
 
-### `torch` will not install
-PyTorch may not support very new Python versions yet. Python 3.12 is recommended for this project.
+```bash
+python3.12 main.py --train
+```
+
+### Evaluate Models
+
+```bash
+python3.12 main.py --evaluate
+```
+
+---
+
+## Troubleshooting
+
+### PyTorch Installation Issues
+
+PyTorch support may lag behind the newest Python releases.
 
 ```bash
 python3.12 -m pip install -r requirements.txt
 ```
 
-### `brew: command not found`
-Install Homebrew first, then use it to install macOS dependencies.
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-### `Library not loaded: libomp.dylib`
-LightGBM needs OpenMP on macOS.
+### macOS: Missing OpenMP
 
 ```bash
 brew install libomp
 ```
 
-### `Address already in use`
-Another program is already using the dashboard port. Start MUNDA on a different port:
+### Homebrew Not Installed
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Port Already In Use
 
 ```bash
 python3.12 main.py --dashboard --port 5050
 ```
 
-### File shows as `UNSUPPORTED`
-MUNDA only scans supported target formats. Use Windows PE files (`.exe`, `.dll`, `.sys`, .NET), Linux ELF files, Android APK files, or PDF documents.
+Choose a different port if necessary.
 
-### Models are missing
-Download the pretrained models again:
+### Models Missing
 
 ```bash
 python3.12 main.py --download-models
 ```
 
-## Scoring
-MUNDA scores supported files from `0%` to `100%`:
+### File Marked as UNSUPPORTED
 
-| Score | Verdict |
-|---|---|
-| 0–39% | Clean |
-| 40–74% | Suspicious |
-| 75–100% | Malware |
+Only the following formats are currently analyzed:
 
-Confidence is based on how decisive the active model score is. If only LightGBM is available, MUNDA no longer forces confidence to `LOW`.
+* PE (`.exe`, `.dll`, `.sys`)
+* .NET assemblies
+* APK (`.apk`)
+* ELF (`.elf`)
+* PDF (`.pdf`)
 
-MalConv2 is only used for Windows PE files (`.exe`, `.dll`, `.sys`, and .NET assemblies). PDF, APK, and ELF files are scanned with the EMBER2024 LightGBM models because the public MalConv2 checkpoint was trained for PE-style raw binaries.
+---
 
 ## Limitations
-MUNDA is intended for educational and research use. Detection results should not be treated as a guarantee that a file is safe or malicious.
 
-- macOS application formats such as `.app`, `.dmg`, and Mach-O binaries are recognized, but not scored yet because MUNDA does not include a trained macOS malware model.
-- MalConv2 is only used for Windows PE files.
-- Real-world accuracy depends on the quality of the pretrained models and the type of file being scanned.
+* Detection results are probabilistic and should not be treated as guarantees.
+* macOS malware detection is not yet implemented.
+* MalConv2 is only available for Windows PE files.
+* Accuracy depends on the quality of pretrained models and the characteristics of analyzed samples.
+
+---
 
 ## Safe Testing
-Do not download random malware onto a personal laptop. For safe testing, use harmless test files or controlled research datasets. The standard EICAR string is safe, but the plain `eicar.com` file is not a supported MUNDA file type and may show as `UNSUPPORTED`.
 
-## Training Your Own Model
-```bash
-# Download EMBER2024 dataset
-python3.12 main.py --download-dataset
+Avoid downloading real malware onto personal systems.
 
-# Train the full ensemble
-python3.12 main.py --train
+For safe testing, use:
 
-# Evaluate on test + challenge set
-python3.12 main.py --evaluate
+* EICAR test files
+* Sandbox environments
+* Academic malware datasets
+* Virtual machines
+
+---
+
+## Disclaimer
+
+MUNDA is intended for **educational, research, and defensive security purposes only**.
+
+The authors are not responsible for decisions made based on scan results. Always perform additional verification before classifying a file as safe or malicious.
+
+---
+
+## License
+
+Specify your project's license here.
+
+```text
+MIT License
 ```
+
+or
+
+```text
+GNU GPL v3
+```
+
 
 ## Credits
 This project uses pretrained EMBER2024 LightGBM models and the public MalConv2 checkpoint from FutureComputing4AI.
