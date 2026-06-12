@@ -277,18 +277,6 @@ The authors are not responsible for decisions made based on scan results. Always
 
 ---
 
-## License
-
-Specify your project's license here.
-
-```text
-MIT License
-```
-
-or
-
-```text
-GNU GPL v3
 ```
 
 
